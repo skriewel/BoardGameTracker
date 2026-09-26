@@ -5,6 +5,17 @@ namespace BoardGameTracker.Common.Extensions;
 
 public static class StatusExtensions
 {
+    public static bool HasSupportedGameState(this CollectionResponse.Status status)
+    {
+        return status.Owned
+            || status.PreviouslyOwned
+            || status.ForTrade
+            || status.Want
+            || status.WantToBuy
+            || status.Wishlist
+            || status.Preordered;
+    }
+
     public static GameState ToGameState(this CollectionResponse.Status status)
     {
         if (status.PreviouslyOwned)
@@ -22,6 +33,11 @@ public static class StatusExtensions
             return GameState.Wanted;
         }
 
-        return GameState.Owned;
+        if (status.Owned)
+        {
+            return GameState.Owned;
+        }
+
+        throw new InvalidOperationException("BGG collection item has no supported BoardGameTracker state.");
     }
 }
