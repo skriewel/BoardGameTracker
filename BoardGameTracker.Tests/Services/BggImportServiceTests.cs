@@ -510,6 +510,88 @@ public class BggImportServiceTests
     }
 
     [Fact]
+    public async Task ImportBggCollection_ShouldIncludePlayedOnlyGamesAsNotOwned()
+    {
+        var items = new List<CollectionResponse.Item>
+        {
+            new()
+            {
+                ObjectId = 409,
+                Name = "Played Elsewhere",
+                NumPlays = 4,
+                Status = new CollectionResponse.Status
+                {
+                    LastModified = new DateTime(2024, 2, 1, 0, 0, 0, DateTimeKind.Utc)
+                },
+                Thumbnail = "played-thumb.jpg",
+                SubType = "boardgame"
+            }
+        };
+
+        _bggClientMock
+            .Setup(x => x.GetCollectionAsync(It.IsAny<CollectionRequest>()))
+            .ReturnsAsync(CreateSucceededCollectionResponse(items));
+
+        var result = await _bggImportService.ImportBggCollection("testuser");
+
+        result.Should().ContainSingle();
+        result[0].BggId.Should().Be(409);
+        result[0].State.Should().Be(GameState.NotOwned);
+
+        _bggClientMock.Verify(x => x.GetCollectionAsync(It.IsAny<CollectionRequest>()), Times.Once);
+        VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task ImportBggCollection_ShouldPreferExplicitStateOverNewerPlayedOnlyDuplicate()
+    {
+        var items = new List<CollectionResponse.Item>
+        {
+            new()
+            {
+                ObjectId = 410,
+                CollectionId = 1,
+                Name = "Shared Game",
+                NumPlays = 2,
+                Status = new CollectionResponse.Status
+                {
+                    Owned = true,
+                    LastModified = new DateTime(2023, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+                },
+                Thumbnail = "owned-thumb.jpg",
+                SubType = "boardgame"
+            },
+            new()
+            {
+                ObjectId = 410,
+                CollectionId = 2,
+                Name = "Shared Game",
+                NumPlays = 5,
+                Status = new CollectionResponse.Status
+                {
+                    LastModified = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+                },
+                Thumbnail = "played-thumb.jpg",
+                SubType = "boardgame"
+            }
+        };
+
+        _bggClientMock
+            .Setup(x => x.GetCollectionAsync(It.IsAny<CollectionRequest>()))
+            .ReturnsAsync(CreateSucceededCollectionResponse(items));
+
+        var result = await _bggImportService.ImportBggCollection("testuser");
+
+        result.Should().ContainSingle();
+        result[0].BggId.Should().Be(410);
+        result[0].State.Should().Be(GameState.Owned);
+        result[0].ImageUrl.Should().Be("owned-thumb.jpg");
+
+        _bggClientMock.Verify(x => x.GetCollectionAsync(It.IsAny<CollectionRequest>()), Times.Once);
+        VerifyNoOtherCalls();
+    }
+
+    [Fact]
     public async Task ImportBggCollection_ShouldDeduplicateByBggId()
     {
         var items = new List<CollectionResponse.Item>

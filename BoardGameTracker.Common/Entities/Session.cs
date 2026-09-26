@@ -7,6 +7,8 @@ public class Session : HasId
 {
     public string Comment { get; private set; }
     public int GameId { get; private set; }
+    public int? BggPlayId { get; private set; }
+    public int? BggPlayIndex { get; private set; }
 
     private DateTime _start;
     private DateTime _end;
@@ -47,6 +49,12 @@ public class Session : HasId
         Expansions = new List<Expansion>();
         ExtraImages = new List<Image>();
         PlayerSessions = new List<PlayerSession>();
+    }
+
+    public void SetBggImportKey(int playId, int playIndex)
+    {
+        BggPlayId = Guard.Against.NegativeOrZero(playId);
+        BggPlayIndex = Guard.Against.NegativeOrZero(playIndex);
     }
 
     public void UpdateComment(string comment)

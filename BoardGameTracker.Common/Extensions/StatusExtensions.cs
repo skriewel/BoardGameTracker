@@ -5,6 +5,27 @@ namespace BoardGameTracker.Common.Extensions;
 
 public static class StatusExtensions
 {
+
+    public static bool HasSupportedGameState(this CollectionResponse.Item item)
+    {
+        return item.Status.HasSupportedGameState() || item.NumPlays > 0;
+    }
+
+    public static GameState ToGameState(this CollectionResponse.Item item)
+    {
+        if (item.Status.HasSupportedGameState())
+        {
+            return item.Status.ToGameState();
+        }
+
+        if (item.NumPlays > 0)
+        {
+            return GameState.NotOwned;
+        }
+
+        throw new InvalidOperationException("BGG collection item has no supported BoardGameTracker state.");
+    }
+
     public static bool HasSupportedGameState(this CollectionResponse.Status status)
     {
         return status.Owned

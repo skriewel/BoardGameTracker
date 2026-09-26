@@ -69,6 +69,7 @@ public static class ServiceCollectionExtensions
         serviceCollection.AddScoped<IGameService, GameService>();
         serviceCollection.AddScoped<IChangeDetectionClient, ChangeDetectionClient>();
         serviceCollection.AddScoped<IBggImportService, BggImportService>();
+        serviceCollection.AddScoped<IBggPlayImportService, BggPlayImportService>();
         serviceCollection.AddScoped<IGameChartService, GameChartService>();
         serviceCollection.AddScoped<IShameService, ShameService>();
         serviceCollection.AddScoped<IImageService, ImageService>();

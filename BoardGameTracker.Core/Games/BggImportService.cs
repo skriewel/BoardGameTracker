@@ -106,15 +106,16 @@ public class BggImportService : IBggImportService
         }
 
         return response.Result
-            .Where(x => x.Status.HasSupportedGameState())
-            .OrderByDescending(x => x.Status.LastModified)
+            .Where(x => x.HasSupportedGameState())
+            .OrderByDescending(x => x.Status.HasSupportedGameState())
+            .ThenByDescending(x => x.Status.LastModified)
             .DistinctBy(x => x.ObjectId)
             .OrderBy(x => x.Name)
             .Select(collectionItem => new BggImportGame
             {
                 BggId = collectionItem.ObjectId,
                 Title = collectionItem.Name,
-                State = collectionItem.Status.ToGameState(),
+                State = collectionItem.ToGameState(),
                 ImageUrl = !string.IsNullOrWhiteSpace(collectionItem.Thumbnail)
                     ? collectionItem.Thumbnail
                     : collectionItem.Image ?? string.Empty,

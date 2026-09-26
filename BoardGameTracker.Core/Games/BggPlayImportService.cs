@@ -1,0 +1,174 @@
+using System.Net;
+using BoardGamer.BoardGameGeek.BoardGameGeekXmlApi2;
+using BoardGameTracker.Common.Entities;
+using BoardGameTracker.Common.Exceptions;
+using BoardGameTracker.Common.Models.Bgg;
+using BoardGameTracker.Core.Datastore.Interfaces;
+using BoardGameTracker.Core.Games.Interfaces;
+using BoardGameTracker.Core.Sessions.Interfaces;
+using BoardGameTracker.Core.Settings.Interfaces;
+using Microsoft.Extensions.Logging;
+
+namespace BoardGameTracker.Core.Games;
+
+public class BggPlayImportService : IBggPlayImportService
+{
+    private const int PageSize = 100;
+
+    private readonly IBoardGameGeekXmlApi2Client _bggClient;
+    private readonly ISettingsService _settingsService;
+    private readonly IGameRepository _gameRepository;
+    private readonly ISessionRepository _sessionRepository;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly ILogger<BggPlayImportService> _logger;
+
+    public BggPlayImportService(
+        IBoardGameGeekXmlApi2Client bggClient,
+        ISettingsService settingsService,
+        IGameRepository gameRepository,
+        ISessionRepository sessionRepository,
+        IUnitOfWork unitOfWork,
+        ILogger<BggPlayImportService> logger)
+    {
+        _bggClient = bggClient;
+        _settingsService = settingsService;
+        _gameRepository = gameRepository;
+        _sessionRepository = sessionRepository;
+        _unitOfWork = unitOfWork;
+        _logger = logger;
+    }
+
+    public async Task<BggPlayImportResult> ImportPlays(string userName)
+    {
+        if (string.IsNullOrWhiteSpace(userName))
+        {
+            throw new ArgumentException("BGG username is required.", nameof(userName));
+        }
+
+        await EnsureBggConfiguredAsync();
+
+        var gamesByBggId = (await _gameRepository.GetAllAsync())
+            .Where(game => game.BggId.HasValue)
+            .GroupBy(game => game.BggId!.Value)
+            .ToDictionary(group => group.Key, group => group.First());
+
+        var importedKeys = (await _sessionRepository.GetAllAsync())
+            .Where(session => session.BggPlayId.HasValue && session.BggPlayIndex.HasValue)
+            .Select(session => (session.BggPlayId!.Value, session.BggPlayIndex!.Value))
+            .ToHashSet();
+
+        var sessionsToImport = new List<Session>();
+        var page = 1;
+        var totalBggPlayEntries = 0;
+        var importedSessions = 0;
+        var skippedExistingSessions = 0;
+        var skippedMissingGameSessions = 0;
+        var skippedInvalidSessions = 0;
+        var pagesFetched = 0;
+
+        while (true)
+        {
+            PlaysResponse response;
+            try
+            {
+                response = await _bggClient.GetPlaysAsync(
+                    new PlaysRequest(userName.Trim(), subType: "boardgame", page: page));
+            }
+            catch (BoardGameGeekHttpException ex) when (ex.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                _logger.LogWarning(ex, "BGG API key is invalid or expired");
+                throw new ValidationException("Invalid BGG API key. Please check your API key in settings.");
+            }
+            catch (BoardGameGeekHttpException ex) when (ex.StatusCode == HttpStatusCode.TooManyRequests)
+            {
+                _logger.LogWarning(ex, "BGG rate-limited the plays request for user {UserName}", userName);
+                throw new BggRateLimitException();
+            }
+
+            var result = response.Result;
+            if (!response.Succeeded || result?.Plays == null || result.Plays.Count == 0)
+            {
+                break;
+            }
+
+            pagesFetched++;
+            totalBggPlayEntries = Math.Max(totalBggPlayEntries, result.Total);
+
+            foreach (var play in result.Plays)
+            {
+                var quantity = Math.Max(1, play.Quantity);
+
+                if (play.Id <= 0 || play.Item == null || play.Item.ObjectId <= 0)
+                {
+                    skippedInvalidSessions += quantity;
+                    continue;
+                }
+
+                if (!gamesByBggId.TryGetValue(play.Item.ObjectId, out var game))
+                {
+                    skippedMissingGameSessions += quantity;
+                    continue;
+                }
+
+                var start = DateTime.SpecifyKind(play.Date.Date, DateTimeKind.Utc);
+                var minutes = Math.Max(0, play.Length);
+
+                for (var playIndex = 1; playIndex <= quantity; playIndex++)
+                {
+                    if (!importedKeys.Add((play.Id, playIndex)))
+                    {
+                        skippedExistingSessions++;
+                        continue;
+                    }
+
+                    var session = new Session(
+                        game.Id,
+                        start,
+                        start.AddMinutes(minutes),
+                        play.Comments ?? string.Empty);
+                    session.SetBggImportKey(play.Id, playIndex);
+
+                    sessionsToImport.Add(session);
+                    importedSessions++;
+                }
+            }
+
+            if (result.Plays.Count < PageSize || (result.Total > 0 && page * PageSize >= result.Total))
+            {
+                break;
+            }
+
+            page++;
+        }
+
+        if (sessionsToImport.Count > 0)
+        {
+            await _sessionRepository.CreateRangeAsync(sessionsToImport);
+            await _unitOfWork.SaveChangesAsync();
+        }
+
+        _logger.LogInformation(
+            "Imported {ImportedSessions} BGG sessions for {UserName}; skipped {Existing} existing, {MissingGame} without local game, {Invalid} invalid",
+            importedSessions,
+            userName,
+            skippedExistingSessions,
+            skippedMissingGameSessions,
+            skippedInvalidSessions);
+
+        return new BggPlayImportResult(
+            totalBggPlayEntries,
+            importedSessions,
+            skippedExistingSessions,
+            skippedMissingGameSessions,
+            skippedInvalidSessions,
+            pagesFetched);
+    }
+
+    private async Task EnsureBggConfiguredAsync()
+    {
+        if (!await _settingsService.IsBggEnabled())
+        {
+            throw new BggFeatureDisabledException();
+        }
+    }
+}
