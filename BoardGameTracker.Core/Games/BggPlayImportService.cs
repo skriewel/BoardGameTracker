@@ -1,7 +1,9 @@
 using System.Net;
+using System.Text;
 using BoardGamer.BoardGameGeek.BoardGameGeekXmlApi2;
 using BoardGameTracker.Common.Entities;
 using BoardGameTracker.Common.Exceptions;
+using BoardGameTracker.Common.Helpers;
 using BoardGameTracker.Common.Models.Bgg;
 using BoardGameTracker.Core.Datastore.Interfaces;
 using BoardGameTracker.Core.Games.Interfaces;
@@ -65,6 +67,7 @@ public class BggPlayImportService : IBggPlayImportService
         var skippedMissingGameSessions = 0;
         var skippedInvalidSessions = 0;
         var pagesFetched = 0;
+        var missingGames = new Dictionary<int, MissingGameInfo>();
 
         while (true)
         {
@@ -107,6 +110,24 @@ public class BggPlayImportService : IBggPlayImportService
                 if (!gamesByBggId.TryGetValue(play.Item.ObjectId, out var game))
                 {
                     skippedMissingGameSessions += quantity;
+
+                    if (!missingGames.TryGetValue(play.Item.ObjectId, out var missingGame))
+                    {
+                        missingGame = new MissingGameInfo(
+                            play.Item.ObjectId,
+                            string.IsNullOrWhiteSpace(play.Item.Name) ? $"BGG {play.Item.ObjectId}" : play.Item.Name.Trim(),
+                            0,
+                            play.Date.Date,
+                            play.Date.Date);
+                    }
+
+                    missingGames[play.Item.ObjectId] = missingGame with
+                    {
+                        MissingSessions = missingGame.MissingSessions + quantity,
+                        FirstPlayDate = play.Date.Date < missingGame.FirstPlayDate ? play.Date.Date : missingGame.FirstPlayDate,
+                        LastPlayDate = play.Date.Date > missingGame.LastPlayDate ? play.Date.Date : missingGame.LastPlayDate
+                    };
+
                     continue;
                 }
 
@@ -147,6 +168,10 @@ public class BggPlayImportService : IBggPlayImportService
             await _unitOfWork.SaveChangesAsync();
         }
 
+        var missingGamesReportFile = missingGames.Count > 0
+            ? await WriteMissingGamesReportAsync(userName.Trim(), missingGames.Values)
+            : null;
+
         _logger.LogInformation(
             "Imported {ImportedSessions} BGG sessions for {UserName}; skipped {Existing} existing, {MissingGame} without local game, {Invalid} invalid",
             importedSessions,
@@ -161,8 +186,53 @@ public class BggPlayImportService : IBggPlayImportService
             skippedExistingSessions,
             skippedMissingGameSessions,
             skippedInvalidSessions,
-            pagesFetched);
+            pagesFetched,
+            missingGamesReportFile);
     }
+
+    private async Task<string> WriteMissingGamesReportAsync(
+        string userName,
+        IEnumerable<MissingGameInfo> missingGames)
+    {
+        Directory.CreateDirectory(PathHelper.FullLogsPath);
+
+        var safeUserName = new string(userName
+            .Select(character => char.IsLetterOrDigit(character) || character is '-' or '_' ? character : '-')
+            .ToArray());
+
+        var fileName = $"bgg-missing-games-{safeUserName}-{DateTime.UtcNow:yyyyMMdd-HHmmss}.csv";
+        var filePath = Path.Combine(PathHelper.FullLogsPath, fileName);
+
+        var lines = new List<string>
+        {
+            "BggId,Title,MissingSessions,FirstPlayDate,LastPlayDate"
+        };
+
+        lines.AddRange(missingGames
+            .OrderBy(game => game.Title, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(game => game.BggId)
+            .Select(game => string.Join(",",
+                game.BggId,
+                CsvEscape(game.Title),
+                game.MissingSessions,
+                game.FirstPlayDate.ToString("yyyy-MM-dd"),
+                game.LastPlayDate.ToString("yyyy-MM-dd"))));
+
+        await File.WriteAllLinesAsync(filePath, lines, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        _logger.LogInformation("Wrote missing BGG games report to {FilePath}", filePath);
+
+        return fileName;
+    }
+
+    private static string CsvEscape(string value) =>
+        $"\"{value.Replace("\"", "\"\"")}\"";
+
+    private sealed record MissingGameInfo(
+        int BggId,
+        string Title,
+        int MissingSessions,
+        DateTime FirstPlayDate,
+        DateTime LastPlayDate);
 
     private async Task EnsureBggConfiguredAsync()
     {
