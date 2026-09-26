@@ -192,6 +192,70 @@ public class BggPlayImportServiceTests
     }
 
     [Fact]
+    public async Task ImportPlays_ShouldSkipPlaysWithMinValueDate()
+    {
+        _bggClient
+            .Setup(x => x.GetPlaysAsync(It.IsAny<PlaysRequest>()))
+            .ReturnsAsync(CreateResponse(
+                2,
+                1,
+                [
+                    new PlaysResponse.Play
+                    {
+                        Id = 250,
+                        Date = DateTime.MinValue,
+                        Quantity = 2,
+                        Length = 30,
+                        Item = new PlaysResponse.Item
+                        {
+                            ObjectId = 999,
+                            Name = "Invalid Date Game",
+                            SubTypes = ["boardgame"]
+                        }
+                    },
+                    new PlaysResponse.Play
+                    {
+                        Id = 251,
+                        Date = new DateTime(2024, 8, 2),
+                        Quantity = 1,
+                        Length = 60,
+                        Item = new PlaysResponse.Item
+                        {
+                            ObjectId = 998,
+                            Name = "Missing Base Game",
+                            SubTypes = ["boardgame"]
+                        }
+                    }
+                ]));
+
+        string? reportPath = null;
+        try
+        {
+            var result = await _service.ImportPlays("testuser");
+
+            result.ImportedSessions.Should().Be(0);
+            result.SkippedInvalidSessions.Should().Be(2);
+            result.SkippedMissingGameSessions.Should().Be(1);
+            result.MissingGamesReportFile.Should().NotBeNullOrWhiteSpace();
+
+            reportPath = Path.Combine(PathHelper.FullLogsPath, result.MissingGamesReportFile!);
+            var lines = await File.ReadAllLinesAsync(reportPath);
+
+            lines.Should().HaveCount(2);
+            lines[1].Should().Contain("998");
+            lines[1].Should().Contain("Missing Base Game");
+            lines.Should().NotContain(line => line.Contains("Invalid Date Game", StringComparison.Ordinal));
+        }
+        finally
+        {
+            if (reportPath != null && File.Exists(reportPath))
+            {
+                File.Delete(reportPath);
+            }
+        }
+    }
+
+    [Fact]
     public async Task ImportPlays_ShouldSkipExpansionPlaysAndExcludeThemFromMissingReport()
     {
         _bggClient
