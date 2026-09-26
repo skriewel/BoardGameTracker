@@ -40,6 +40,9 @@ public class BggImportServiceTests
         _gameFactoryMock = new Mock<IGameFactory>();
         _gameRepositoryMock = new Mock<IGameRepository>();
         _gameRepositoryMock.Setup(x => x.GetGameByBggId(It.IsAny<int>())).ReturnsAsync((Game?)null);
+        _bggClientMock
+            .Setup(x => x.GetPlaysAsync(It.IsAny<PlaysRequest>()))
+            .ReturnsAsync(CreateSucceededPlaysResponse([]));
         _unitOfWorkMock = new Mock<IUnitOfWork>();
         _loggerMock = new Mock<ILogger<BggImportService>>();
 
@@ -56,6 +59,12 @@ public class BggImportServiceTests
     {
         _settingsServiceMock.Verify(x => x.IsBggEnabled(), Times.Once);
         _settingsServiceMock.VerifyNoOtherCalls();
+
+        if (_bggClientMock.Invocations.Any(invocation => invocation.Method.Name == nameof(IBoardGameGeekXmlApi2Client.GetPlaysAsync)))
+        {
+            _bggClientMock.Verify(x => x.GetPlaysAsync(It.IsAny<PlaysRequest>()), Times.AtLeastOnce);
+        }
+
         _bggClientMock.VerifyNoOtherCalls();
         _gameFactoryMock.VerifyNoOtherCalls();
         _gameRepositoryMock.VerifyNoOtherCalls();
@@ -86,6 +95,22 @@ public class BggImportServiceTests
         var itemCollection = new CollectionResponse.ItemCollection(items);
         return new CollectionResponse(itemCollection);
     }
+
+    private static PlaysResponse CreateSucceededPlaysResponse(
+        IEnumerable<PlaysResponse.Play> plays,
+        int? total = null,
+        int page = 1)
+    {
+        var playList = plays.ToList();
+        return new PlaysResponse(new PlaysResponse.PlaysCollection
+        {
+            Username = "testuser",
+            Total = total ?? playList.Count,
+            Page = page,
+            Plays = playList
+        });
+    }
+
 
     #region ImportGameFromBgg Tests
 
@@ -539,6 +564,89 @@ public class BggImportServiceTests
         result[0].State.Should().Be(GameState.NotOwned);
 
         _bggClientMock.Verify(x => x.GetCollectionAsync(It.IsAny<CollectionRequest>()), Times.Once);
+        VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task ImportBggCollection_ShouldIncludeGameFoundOnlyInPlays()
+    {
+        _bggClientMock
+            .Setup(x => x.GetCollectionAsync(It.IsAny<CollectionRequest>()))
+            .ReturnsAsync(CreateSucceededCollectionResponse([]));
+
+        _bggClientMock
+            .Setup(x => x.GetPlaysAsync(It.IsAny<PlaysRequest>()))
+            .ReturnsAsync(CreateSucceededPlaysResponse(
+                [
+                    new PlaysResponse.Play
+                    {
+                        Id = 900,
+                        Date = new DateTime(2024, 5, 10),
+                        Quantity = 1,
+                        Item = new PlaysResponse.Item
+                        {
+                            ObjectId = 777,
+                            Name = "Played Outside Collection",
+                            SubTypes = ["boardgame"]
+                        }
+                    }
+                ]));
+
+        var result = await _bggImportService.ImportBggCollection("testuser");
+
+        result.Should().ContainSingle();
+        result[0].BggId.Should().Be(777);
+        result[0].Title.Should().Be("Played Outside Collection");
+        result[0].State.Should().Be(GameState.NotOwned);
+        result[0].LastModified.Should().Be(new DateTime(2024, 5, 10, 0, 0, 0, DateTimeKind.Utc));
+        result[0].ImageUrl.Should().BeEmpty();
+
+        _bggClientMock.Verify(x => x.GetCollectionAsync(It.IsAny<CollectionRequest>()), Times.Once);
+        _bggClientMock.Verify(x => x.GetPlaysAsync(It.IsAny<PlaysRequest>()), Times.Once);
+        VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task ImportBggCollection_ShouldExcludeExpansionAndInvalidDatePlays()
+    {
+        _bggClientMock
+            .Setup(x => x.GetCollectionAsync(It.IsAny<CollectionRequest>()))
+            .ReturnsAsync(CreateSucceededCollectionResponse([]));
+
+        _bggClientMock
+            .Setup(x => x.GetPlaysAsync(It.IsAny<PlaysRequest>()))
+            .ReturnsAsync(CreateSucceededPlaysResponse(
+                [
+                    new PlaysResponse.Play
+                    {
+                        Id = 901,
+                        Date = new DateTime(2024, 5, 10),
+                        Item = new PlaysResponse.Item
+                        {
+                            ObjectId = 778,
+                            Name = "Expansion",
+                            SubTypes = ["boardgame", "boardgameexpansion"]
+                        }
+                    },
+                    new PlaysResponse.Play
+                    {
+                        Id = 902,
+                        Date = DateTime.MinValue,
+                        Item = new PlaysResponse.Item
+                        {
+                            ObjectId = 779,
+                            Name = "Invalid Date",
+                            SubTypes = ["boardgame"]
+                        }
+                    }
+                ]));
+
+        var result = await _bggImportService.ImportBggCollection("testuser");
+
+        result.Should().BeEmpty();
+
+        _bggClientMock.Verify(x => x.GetCollectionAsync(It.IsAny<CollectionRequest>()), Times.Once);
+        _bggClientMock.Verify(x => x.GetPlaysAsync(It.IsAny<PlaysRequest>()), Times.Once);
         VerifyNoOtherCalls();
     }
 
