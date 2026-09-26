@@ -1,5 +1,6 @@
 using BoardGamer.BoardGameGeek.BoardGameGeekXmlApi2;
 using BoardGameTracker.Common.Entities;
+using BoardGameTracker.Common.Helpers;
 using BoardGameTracker.Core.Datastore.Interfaces;
 using BoardGameTracker.Core.Games;
 using BoardGameTracker.Core.Games.Interfaces;
@@ -72,6 +73,7 @@ public class BggPlayImportServiceTests
         result.SkippedExistingSessions.Should().Be(0);
         result.SkippedMissingGameSessions.Should().Be(0);
         result.PagesFetched.Should().Be(1);
+        result.MissingGamesReportFile.Should().BeNull();
 
         imported.Should().NotBeNull();
         imported!.Should().HaveCount(2);
@@ -134,12 +136,12 @@ public class BggPlayImportServiceTests
     }
 
     [Fact]
-    public async Task ImportPlays_ShouldSkipSessionsForGamesNotInLocalCollection()
+    public async Task ImportPlays_ShouldWriteAggregatedReportForGamesNotInLocalCollection()
     {
         _bggClient
             .Setup(x => x.GetPlaysAsync(It.IsAny<PlaysRequest>()))
             .ReturnsAsync(CreateResponse(
-                1,
+                2,
                 1,
                 [
                     new PlaysResponse.Play
@@ -148,16 +150,45 @@ public class BggPlayImportServiceTests
                         Date = new DateTime(2024, 7, 1),
                         Quantity = 3,
                         Length = 60,
-                        Item = new PlaysResponse.Item { ObjectId = 999 }
+                        Item = new PlaysResponse.Item { ObjectId = 999, Name = "Missing Game" }
+                    },
+                    new PlaysResponse.Play
+                    {
+                        Id = 201,
+                        Date = new DateTime(2024, 6, 30),
+                        Quantity = 2,
+                        Length = 45,
+                        Item = new PlaysResponse.Item { ObjectId = 999, Name = "Missing Game" }
                     }
                 ]));
 
-        var result = await _service.ImportPlays("testuser");
+        string? reportPath = null;
+        try
+        {
+            var result = await _service.ImportPlays("testuser");
 
-        result.ImportedSessions.Should().Be(0);
-        result.SkippedMissingGameSessions.Should().Be(3);
-        _sessionRepository.Verify(x => x.CreateRangeAsync(It.IsAny<List<Session>>()), Times.Never);
-        _unitOfWork.Verify(x => x.SaveChangesAsync(default), Times.Never);
+            result.ImportedSessions.Should().Be(0);
+            result.SkippedMissingGameSessions.Should().Be(5);
+            result.MissingGamesReportFile.Should().NotBeNullOrWhiteSpace();
+
+            reportPath = Path.Combine(PathHelper.FullLogsPath, result.MissingGamesReportFile!);
+            File.Exists(reportPath).Should().BeTrue();
+
+            var lines = await File.ReadAllLinesAsync(reportPath);
+            lines.Should().HaveCount(2);
+            lines[0].Should().Be("BggId,Title,MissingSessions,FirstPlayDate,LastPlayDate");
+            lines[1].Should().Be("999,\"Missing Game\",5,2024-06-30,2024-07-01");
+
+            _sessionRepository.Verify(x => x.CreateRangeAsync(It.IsAny<List<Session>>()), Times.Never);
+            _unitOfWork.Verify(x => x.SaveChangesAsync(default), Times.Never);
+        }
+        finally
+        {
+            if (reportPath != null && File.Exists(reportPath))
+            {
+                File.Delete(reportPath);
+            }
+        }
     }
 
     [Fact]
