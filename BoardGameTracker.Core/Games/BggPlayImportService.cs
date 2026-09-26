@@ -102,7 +102,7 @@ public class BggPlayImportService : IBggPlayImportService
             {
                 var quantity = Math.Max(1, play.Quantity);
 
-                if (play.Id <= 0 || play.Item == null || play.Item.ObjectId <= 0 || play.Date.Date == DateTime.MinValue.Date)
+                if (play.Id <= 0 || play.Item == null || play.Item.ObjectId <= 0 || IsInvalidPlayDate(play.Date))
                 {
                     skippedInvalidSessions += quantity;
                     continue;
@@ -233,6 +233,10 @@ public class BggPlayImportService : IBggPlayImportService
 
         return fileName;
     }
+
+    private static bool IsInvalidPlayDate(DateTime date) =>
+        date.Date == DateTime.MinValue.Date
+        || date.Date == new DateTime(1900, 1, 1);
 
     private static string CsvEscape(string value) =>
         $"\"{value.Replace("\"", "\"\"")}\"";
