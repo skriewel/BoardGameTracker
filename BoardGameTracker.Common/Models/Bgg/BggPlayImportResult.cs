@@ -5,6 +5,7 @@ public sealed record BggPlayImportResult(
     int ImportedSessions,
     int SkippedExistingSessions,
     int SkippedMissingGameSessions,
+    int SkippedExpansionSessions,
     int SkippedInvalidSessions,
     int PagesFetched,
     string? MissingGamesReportFile);
