@@ -102,7 +102,7 @@ public class BggPlayImportService : IBggPlayImportService
             {
                 var quantity = Math.Max(1, play.Quantity);
 
-                if (play.Id <= 0 || play.Item == null || play.Item.ObjectId <= 0)
+                if (play.Id <= 0 || play.Item == null || play.Item.ObjectId <= 0 || play.Date.Date == DateTime.MinValue.Date)
                 {
                     skippedInvalidSessions += quantity;
                     continue;
