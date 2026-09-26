@@ -163,7 +163,7 @@ export const GameStaticSection = (props: Props) => {
 									end: new Date(),
 								}),
 								{
-									format: ["months", "days"],
+									format: ["years", "months", "days"],
 								},
 							)}
 							title={t("statistics:in-collection")}

@@ -1,7 +1,7 @@
 import { useMutation, useQueries } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
 import { useQueryInvalidator } from "@/hooks/useQueryInvalidator";
-import type { ImportGame } from "@/models";
+import { GameState, type ImportGame } from "@/models";
 import { useToasts } from "@/routes/-hooks/useToasts";
 import { importGamesCall } from "@/services/gameService";
 import { getBggCollection, getGames } from "@/services/queries/games";
@@ -23,6 +23,7 @@ export const useList = ({ username }: Props) => {
 	const bggError = bggCollectionQuery.error;
 
 	const [filterCollected, setFilterCollected] = useState<boolean>(true);
+	const [filterNonOwned, setFilterNonOwned] = useState<boolean>(false);
 
 	const processingGames = bggCollectionQuery.isLoading || gamesQuery.isLoading;
 
@@ -61,13 +62,15 @@ export const useList = ({ username }: Props) => {
 	const [localUpdates, setLocalUpdates] = useState<Map<number, Partial<ImportGame>>>(new Map());
 
 	const games = useMemo(() => {
-		const filtered = filterCollected ? processedGames.filter((game) => !game.inCollection) : processedGames;
-		return filtered.map((game) => {
-			const updates = localUpdates.get(game.bggId);
-			const merged = updates ? { ...game, ...updates } : game;
-			return merged.inCollection ? { ...merged, checked: false } : merged;
-		});
-	}, [processedGames, filterCollected, localUpdates]);
+		return processedGames
+			.map((game) => {
+				const updates = localUpdates.get(game.bggId);
+				const merged = updates ? { ...game, ...updates } : game;
+				return merged.inCollection ? { ...merged, checked: false } : merged;
+			})
+			.filter((game) => !filterCollected || !game.inCollection)
+			.filter((game) => !filterNonOwned || game.state === GameState.Owned);
+	}, [processedGames, filterCollected, filterNonOwned, localUpdates]);
 
 	const updateGame = useCallback((bggId: number, updates: Partial<ImportGame>) => {
 		setLocalUpdates((prev) => {
@@ -111,6 +114,8 @@ export const useList = ({ username }: Props) => {
 		setSelection,
 		filterCollected,
 		setFilterCollected,
+		filterNonOwned,
+		setFilterNonOwned,
 		inCollectionCount,
 		processingGames,
 		totalCount,

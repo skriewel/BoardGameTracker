@@ -18,7 +18,7 @@ vi.mock("@/services/queries/games", () => ({
 				{
 					bggId: 2,
 					title: "Not Owned",
-					state: "owned",
+					state: "wanted",
 					imageUrl: "",
 					lastModified: "2024-01-01T00:00:00Z",
 				},
@@ -86,6 +86,20 @@ describe("useList", () => {
 		expect(result.current.games.map((g) => g.bggId)).toEqual([2]);
 		expect(result.current.inCollectionCount).toBe(1);
 		expect(result.current.totalCount).toBe(2);
+	});
+
+	it("hides non-owned games when the filter is enabled", async () => {
+		const { result } = await renderUseList();
+
+		expect(result.current.games.map((g) => g.bggId)).toEqual([2]);
+
+		act(() => result.current.setFilterNonOwned(true));
+
+		expect(result.current.games).toHaveLength(0);
+
+		act(() => result.current.setFilterCollected(false));
+
+		expect(result.current.games.map((g) => g.bggId)).toEqual([1]);
 	});
 
 	it("never keeps an in-collection game selected, even after it was checked", async () => {

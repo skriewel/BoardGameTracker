@@ -292,13 +292,12 @@ app.Use(async (context, next) =>
         headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
         headers["Cross-Origin-Resource-Policy"] = "same-origin";
         headers["Cross-Origin-Opener-Policy"] = "same-origin";
-        headers["Cross-Origin-Embedder-Policy"] = "require-corp";
         headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
 
         var isSwagger = swaggerEnabled && context.Request.Path.StartsWithSegments("/swagger");
         headers["Content-Security-Policy"] = isSwagger
-            ? "default-src 'self'; img-src 'self' data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; form-action 'self';"
-            : "default-src 'self'; img-src 'self' data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; form-action 'self';";
+            ? "default-src 'self'; img-src 'self' data: blob: https://cf.geekdo-images.com; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; form-action 'self';"
+            : "default-src 'self'; img-src 'self' data: blob: https://cf.geekdo-images.com; script-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; form-action 'self';";
 
         if (hstsEnabled && context.Request.IsHttps)
         {

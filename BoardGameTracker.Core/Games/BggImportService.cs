@@ -76,7 +76,7 @@ public class BggImportService : IBggImportService
         CollectionResponse response;
         try
         {
-            var request = new CollectionRequest(userName, subType: "boardgame");
+            var request = new CollectionRequest(userName, subType: "boardgame", excludeSubType: "boardgameexpansion");
             response = await _bggClient.GetCollectionAsync(request);
         }
         catch (BoardGameGeekHttpException ex) when (ex.StatusCode == HttpStatusCode.Unauthorized)
@@ -106,13 +106,18 @@ public class BggImportService : IBggImportService
         }
 
         return response.Result
+            .Where(x => x.Status.HasSupportedGameState())
+            .OrderByDescending(x => x.Status.LastModified)
+            .DistinctBy(x => x.ObjectId)
             .OrderBy(x => x.Name)
             .Select(collectionItem => new BggImportGame
             {
                 BggId = collectionItem.ObjectId,
                 Title = collectionItem.Name,
                 State = collectionItem.Status.ToGameState(),
-                ImageUrl = collectionItem.Image ?? string.Empty,
+                ImageUrl = !string.IsNullOrWhiteSpace(collectionItem.Thumbnail)
+                    ? collectionItem.Thumbnail
+                    : collectionItem.Image ?? string.Empty,
                 LastModified = collectionItem.Status.LastModified
             })
             .ToList();

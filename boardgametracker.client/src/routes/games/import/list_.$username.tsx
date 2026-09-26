@@ -51,6 +51,8 @@ function RouteComponent() {
 		setSelection,
 		filterCollected,
 		setFilterCollected,
+		filterNonOwned,
+		setFilterNonOwned,
 		inCollectionCount,
 		processingGames,
 		totalCount,
@@ -235,6 +237,11 @@ function RouteComponent() {
 									label={t("games:import.hide-collected")}
 									value={filterCollected}
 									onChange={(value) => setFilterCollected(value)}
+								/>
+								<BgtSimpleSwitch
+									label={t("games:import.hide-non-owned")}
+									value={filterNonOwned}
+									onChange={(value) => setFilterNonOwned(value)}
 								/>
 							</div>
 							<div>
