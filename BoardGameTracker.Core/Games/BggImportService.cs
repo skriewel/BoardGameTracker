@@ -226,7 +226,7 @@ public class BggImportService : IBggImportService
             {
                 if (play.Item == null
                     || play.Item.ObjectId <= 0
-                    || IsInvalidPlayDate(play.Date)
+                    || play.Date.HasPlaceholderDate()
                     || play.Item.SubTypes?.Any(subType =>
                         string.Equals(subType, "boardgameexpansion", StringComparison.OrdinalIgnoreCase)) == true)
                 {
@@ -278,10 +278,6 @@ public class BggImportService : IBggImportService
 
         return playedGames.Values.ToList();
     }
-
-    private static bool IsInvalidPlayDate(DateTime date) =>
-        date.Date == DateTime.MinValue.Date
-        || date.Date == new DateTime(1900, 1, 1);
 
     private static decimal? ToSafeDecimalPrice(double value)
     {
