@@ -164,6 +164,21 @@ describe("GameStaticSection", () => {
 			expect(screen.getByText("statistics:in-collection")).toBeInTheDocument();
 		});
 
+		it("should include years in the collection age", () => {
+			vi.useFakeTimers();
+			vi.setSystemTime(new Date(2026, 8, 26));
+
+			try {
+				renderWithTheme(
+					<GameStaticSection {...defaultProps} game={createGame({ additionDate: new Date(2021, 8, 15) })} />,
+				);
+
+				expect(screen.getByText("5 years 11 days")).toBeInTheDocument();
+			} finally {
+				vi.useRealTimers();
+			}
+		});
+
 		it("should not render when the addition date is null", () => {
 			renderWithTheme(<GameStaticSection {...defaultProps} />);
 
