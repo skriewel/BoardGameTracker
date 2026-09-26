@@ -4,7 +4,9 @@
   },
   "image": {
     "type-not-supported": "Image type not supported",
-    "error": "Error while uploading image, check logs"
+    "error": "Error while uploading image, check logs",
+    "too-large": "Afbeelding is te groot",
+    "unsupported-format": "Niet-ondersteund afbeeldingsformaat"
   },
   "auth": {
     "username-already-exists": "Username already exists",
@@ -18,7 +20,10 @@
     "invalid-credentials": "Invalid username or password",
     "invalid-refresh-token": "Invalid or expired session",
     "player-already-linked": "Deze speler is al gekoppeld aan een ander account",
-    "invalid-reset-token": "Deze link om je wachtwoord opnieuw in te stellen is ongeldig of verlopen"
+    "invalid-reset-token": "Deze link om je wachtwoord opnieuw in te stellen is ongeldig of verlopen",
+    "account-locked-out": "Te veel mislukte pogingen. Probeer het later opnieuw.",
+    "invalid-redirect-uri": "Ongeldige omleidings-URI",
+    "invalid-auth-session": "Ongeldige of verlopen authenticatiesessie"
   },
   "changedetection": {
     "invalid-base-url": "De changedetection.io-URL is ongeldig",

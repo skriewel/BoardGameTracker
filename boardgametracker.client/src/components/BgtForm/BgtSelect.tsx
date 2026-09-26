@@ -127,7 +127,7 @@ const BgtSelectComponent = (props: BgtSelectProps) => {
 										type="text"
 										value={searchTerm}
 										onChange={handleSearchChange}
-										placeholder="Search..."
+										placeholder={t("search-placeholder")}
 										className="bg-transparent border-none outline-hidden py-2 text-sm w-full"
 										onClick={(e) => e.stopPropagation()}
 										onKeyDown={(e) => {

@@ -4,7 +4,9 @@
   },
   "image": {
     "type-not-supported": "Image type not supported",
-    "error": "Error while uploading image, check logs"
+    "error": "Error while uploading image, check logs",
+    "too-large": "Image is too large",
+    "unsupported-format": "Unsupported image format"
   },
   "auth": {
     "username-already-exists": "Username already exists",
@@ -18,7 +20,10 @@
     "invalid-credentials": "Invalid username or password",
     "invalid-refresh-token": "Invalid or expired session",
     "player-already-linked": "This player is already linked to another account",
-    "invalid-reset-token": "This password reset link is invalid or has expired"
+    "invalid-reset-token": "This password reset link is invalid or has expired",
+    "account-locked-out": "Too many failed attempts. Try again later.",
+    "invalid-redirect-uri": "Invalid redirect URI",
+    "invalid-auth-session": "Invalid or expired authentication session"
   },
   "changedetection": {
     "invalid-base-url": "The changedetection.io URL is not valid",

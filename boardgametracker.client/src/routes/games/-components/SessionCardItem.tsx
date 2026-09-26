@@ -1,6 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { format } from "date-fns";
 import { memo, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { BgtAvatar } from "@/components/BgtAvatar/BgtAvatar";
 import { BgtText } from "@/components/BgtText/BgtText";
 import type { Session } from "@/models";
@@ -15,6 +16,7 @@ const SessionCardItemComponent = (props: Props) => {
 	const { session, dateFormat } = props;
 	const { playerById } = usePlayerById();
 	const navigate = useNavigate();
+	const { t } = useTranslation("common");
 
 	const winner = useMemo(() => {
 		const winners = session.playerSessions.filter((ps) => ps.won);
@@ -46,10 +48,10 @@ const SessionCardItemComponent = (props: Props) => {
 			</div>
 			<div className="text-right">
 				<BgtText color="cyan" weight="bold">
-					{winnerSession?.score} pts
+					{winnerSession?.score} {t("points-abbreviation")}
 				</BgtText>
 				<div className="text-white/50 text-sm">
-					{session.playerSessions.length}p • {session.minutes}m
+					{session.playerSessions.length} {t("players-abbreviation")} • {session.minutes} {t("minutes-abbreviation")}
 				</div>
 			</div>
 		</div>

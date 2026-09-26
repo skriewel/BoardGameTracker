@@ -57,7 +57,7 @@ interface SettingsPageContentProps {
 function SettingsPageContent({ settings, languages, isSaving, saveSettings }: SettingsPageContentProps) {
 	const { canManageSettings } = usePermissions();
 	const [activeCategory, setActiveCategory] = useState<SettingsCategory>(canManageSettings ? "general" : "account");
-	const { t } = useTranslation("settings");
+	const { t } = useTranslation(["settings", "common"]);
 
 	const form = useAppForm({
 		...settingsFormOpts,
@@ -120,7 +120,7 @@ function SettingsPageContent({ settings, languages, isSaving, saveSettings }: Se
 
 	return (
 		<BgtPage>
-			<BgtPageHeader header={"Settings"} icon={CogIcon} />
+			<BgtPageHeader header={t("common:settings")} icon={CogIcon} />
 			<BgtPageContent>
 				<div className="flex flex-col lg:flex-row">
 					<SettingsSidebar

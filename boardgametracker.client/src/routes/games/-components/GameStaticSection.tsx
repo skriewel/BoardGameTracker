@@ -16,6 +16,7 @@ import { BgtTextStatistic } from "@/components/BgtStatistic/BgtTextStatistic";
 import { BgtText } from "@/components/BgtText/BgtText";
 import type { Game, GamePrice } from "@/models";
 import { toDisplay } from "@/utils/dateUtils";
+import { getDateFnsLocale } from "@/utils/localeUtils";
 import { formatPrice } from "@/utils/priceUtils";
 import { BgtPoster } from "../../-components/BgtPoster";
 import { PriceRefreshButton } from "./PriceRefreshButton";
@@ -164,6 +165,7 @@ export const GameStaticSection = (props: Props) => {
 								}),
 								{
 									format: ["years", "months", "days"],
+									locale: getDateFnsLocale(uiLanguage),
 								},
 							)}
 							title={t("statistics:in-collection")}
