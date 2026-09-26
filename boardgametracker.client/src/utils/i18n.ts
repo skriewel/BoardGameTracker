@@ -32,9 +32,9 @@ const namespaces = [
 	"auth",
 ] as const;
 
-let translationFilePath = "/locales/{{lng}}/{{ns}}.json";
+let translationFilePath = `/locales/{{lng}}/{{ns}}.json?v=${__LOCALE_VERSION__}`;
 if (import.meta.env.DEV) {
-	translationFilePath = "/locales/base/{{ns}}.json";
+	translationFilePath = `/locales/base/{{ns}}.json?v=${__LOCALE_VERSION__}`;
 }
 
 void i18n
