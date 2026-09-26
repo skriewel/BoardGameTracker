@@ -660,7 +660,7 @@ public class BggImportServiceTests
     }
 
     [Fact]
-    public async Task ImportBggCollection_ShouldRequestSingleBoardgameSubtype()
+    public async Task ImportBggCollection_ShouldRequestBoardgamesAndExcludeExpansions()
     {
         var collectionResponse = CreateSucceededCollectionResponse([]);
 
@@ -673,7 +673,7 @@ public class BggImportServiceTests
         _bggClientMock.Verify(x => x.GetCollectionAsync(
             It.Is<CollectionRequest>(r =>
                 r.RelativeUrl.ToString().Contains("subtype=boardgame")
-                && !r.RelativeUrl.ToString().Contains("boardgameexpansion"))),
+                && r.RelativeUrl.ToString().Contains("excludesubtype=boardgameexpansion"))),
             Times.Once);
         VerifyNoOtherCalls();
     }
