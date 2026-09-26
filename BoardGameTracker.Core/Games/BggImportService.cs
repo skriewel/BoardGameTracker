@@ -100,7 +100,7 @@ public class BggImportService : IBggImportService
             throw new BggCollectionPreparingException();
         }
 
-        var games = (response.Result ?? [])
+        var games = (response.Result?.AsEnumerable() ?? Enumerable.Empty<CollectionResponse.Item>())
             .Where(x => x.HasSupportedGameState())
             .OrderByDescending(x => x.Status.HasSupportedGameState())
             .ThenByDescending(x => x.Status.LastModified)
