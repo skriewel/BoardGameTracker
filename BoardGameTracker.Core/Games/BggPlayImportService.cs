@@ -65,6 +65,7 @@ public class BggPlayImportService : IBggPlayImportService
         var importedSessions = 0;
         var skippedExistingSessions = 0;
         var skippedMissingGameSessions = 0;
+        var skippedExpansionSessions = 0;
         var skippedInvalidSessions = 0;
         var pagesFetched = 0;
         var missingGames = new Dictionary<int, MissingGameInfo>();
@@ -104,6 +105,13 @@ public class BggPlayImportService : IBggPlayImportService
                 if (play.Id <= 0 || play.Item == null || play.Item.ObjectId <= 0)
                 {
                     skippedInvalidSessions += quantity;
+                    continue;
+                }
+
+                if (play.Item.SubTypes?.Any(subType =>
+                        string.Equals(subType, "boardgameexpansion", StringComparison.OrdinalIgnoreCase)) == true)
+                {
+                    skippedExpansionSessions += quantity;
                     continue;
                 }
 
@@ -173,11 +181,12 @@ public class BggPlayImportService : IBggPlayImportService
             : null;
 
         _logger.LogInformation(
-            "Imported {ImportedSessions} BGG sessions for {UserName}; skipped {Existing} existing, {MissingGame} without local game, {Invalid} invalid",
+            "Imported {ImportedSessions} BGG sessions for {UserName}; skipped {Existing} existing, {MissingGame} without local game, {Expansion} expansion, {Invalid} invalid",
             importedSessions,
             userName,
             skippedExistingSessions,
             skippedMissingGameSessions,
+            skippedExpansionSessions,
             skippedInvalidSessions);
 
         return new BggPlayImportResult(
@@ -185,6 +194,7 @@ public class BggPlayImportService : IBggPlayImportService
             importedSessions,
             skippedExistingSessions,
             skippedMissingGameSessions,
+            skippedExpansionSessions,
             skippedInvalidSessions,
             pagesFetched,
             missingGamesReportFile);
