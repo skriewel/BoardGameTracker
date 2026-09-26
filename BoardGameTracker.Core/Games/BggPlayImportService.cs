@@ -3,6 +3,7 @@ using System.Text;
 using BoardGamer.BoardGameGeek.BoardGameGeekXmlApi2;
 using BoardGameTracker.Common.Entities;
 using BoardGameTracker.Common.Exceptions;
+using BoardGameTracker.Common.Extensions;
 using BoardGameTracker.Common.Helpers;
 using BoardGameTracker.Common.Models.Bgg;
 using BoardGameTracker.Core.Datastore.Interfaces;
@@ -102,7 +103,7 @@ public class BggPlayImportService : IBggPlayImportService
             {
                 var quantity = Math.Max(1, play.Quantity);
 
-                if (play.Id <= 0 || play.Item == null || play.Item.ObjectId <= 0 || IsInvalidPlayDate(play.Date))
+                if (play.Id <= 0 || play.Item == null || play.Item.ObjectId <= 0 || play.Date.HasPlaceholderDate())
                 {
                     skippedInvalidSessions += quantity;
                     continue;
@@ -233,10 +234,6 @@ public class BggPlayImportService : IBggPlayImportService
 
         return fileName;
     }
-
-    private static bool IsInvalidPlayDate(DateTime date) =>
-        date.Date == DateTime.MinValue.Date
-        || date.Date == new DateTime(1900, 1, 1);
 
     private static string CsvEscape(string value) =>
         $"\"{value.Replace("\"", "\"\"")}\"";
