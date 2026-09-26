@@ -250,7 +250,7 @@ public class BggImportService : IBggImportService
                     {
                         BggId = bggId,
                         Title = title,
-                        State = Common.Enums.GameState.NotOwned,
+                        State = BoardGameTracker.Common.Enums.GameState.NotOwned,
                         ImageUrl = string.Empty,
                         LastModified = playDate
                     };
