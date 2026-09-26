@@ -197,7 +197,7 @@ public class BggPlayImportServiceTests
         _bggClient
             .Setup(x => x.GetPlaysAsync(It.IsAny<PlaysRequest>()))
             .ReturnsAsync(CreateResponse(
-                2,
+                3,
                 1,
                 [
                     new PlaysResponse.Play
@@ -209,13 +209,26 @@ public class BggPlayImportServiceTests
                         Item = new PlaysResponse.Item
                         {
                             ObjectId = 999,
-                            Name = "Invalid Date Game",
+                            Name = "Invalid Min Date Game",
                             SubTypes = ["boardgame"]
                         }
                     },
                     new PlaysResponse.Play
                     {
                         Id = 251,
+                        Date = new DateTime(1900, 1, 1),
+                        Quantity = 3,
+                        Length = 30,
+                        Item = new PlaysResponse.Item
+                        {
+                            ObjectId = 997,
+                            Name = "Invalid 1900 Date Game",
+                            SubTypes = ["boardgame"]
+                        }
+                    },
+                    new PlaysResponse.Play
+                    {
+                        Id = 252,
                         Date = new DateTime(2024, 8, 2),
                         Quantity = 1,
                         Length = 60,
@@ -234,7 +247,7 @@ public class BggPlayImportServiceTests
             var result = await _service.ImportPlays("testuser");
 
             result.ImportedSessions.Should().Be(0);
-            result.SkippedInvalidSessions.Should().Be(2);
+            result.SkippedInvalidSessions.Should().Be(5);
             result.SkippedMissingGameSessions.Should().Be(1);
             result.MissingGamesReportFile.Should().NotBeNullOrWhiteSpace();
 
@@ -244,7 +257,8 @@ public class BggPlayImportServiceTests
             lines.Should().HaveCount(2);
             lines[1].Should().Contain("998");
             lines[1].Should().Contain("Missing Base Game");
-            lines.Should().NotContain(line => line.Contains("Invalid Date Game", StringComparison.Ordinal));
+            lines.Should().NotContain(line => line.Contains("Invalid Min Date Game", StringComparison.Ordinal));
+            lines.Should().NotContain(line => line.Contains("Invalid 1900 Date Game", StringComparison.Ordinal));
         }
         finally
         {
