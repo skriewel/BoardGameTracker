@@ -76,9 +76,9 @@ export const updateGameCall = (game: Game): Promise<Game> => {
 };
 
 export const getGameExpansionsCall = (id: number): Promise<ExpansionLink[]> => {
-	return axiosInstance.get<ExpansionLink[]>(`${domain}/${id}/expansions`).then((response) => {
-		return response.data;
-	});
+	return axiosInstance
+		.get<Array<{ title: string; bggId: number }>>(`${domain}/${id}/expansions`)
+		.then((response) => response.data.map((expansion) => ({ id: expansion.bggId, value: expansion.title })));
 };
 
 export const saveGameExpansionCall = (expansionUpdate: ExpansionUpdate): Promise<Expansion[]> => {
