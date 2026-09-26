@@ -76,7 +76,7 @@ public class BggImportService : IBggImportService
         CollectionResponse response;
         try
         {
-            var request = new CollectionRequest(userName, subType: "boardgame");
+            var request = new CollectionRequest(userName, subType: "boardgame", excludeSubType: "boardgameexpansion");
             response = await _bggClient.GetCollectionAsync(request);
         }
         catch (BoardGameGeekHttpException ex) when (ex.StatusCode == HttpStatusCode.Unauthorized)
