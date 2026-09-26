@@ -18,7 +18,8 @@
   },
   "added-date": {
     "label": "Date added",
-    "required": "Date is required"
+    "required": "Date is required",
+    "placeholder": "Selecteer een datum"
   },
   "bgg": {
     "label": "BGG id",

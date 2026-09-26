@@ -124,5 +124,9 @@
     "thursday": "Thursday",
     "friday": "Friday",
     "saturday": "Saturday"
-  }
+  },
+  "required": "Obligatorio",
+  "search-placeholder": "Buscar...",
+  "points-abbreviation": "pts",
+  "players-abbreviation": "jug."
 }

@@ -124,5 +124,9 @@
     "thursday": "Thursday",
     "friday": "Friday",
     "saturday": "Saturday"
-  }
+  },
+  "required": "Verplicht",
+  "search-placeholder": "Zoeken...",
+  "points-abbreviation": "pt",
+  "players-abbreviation": "sp."
 }

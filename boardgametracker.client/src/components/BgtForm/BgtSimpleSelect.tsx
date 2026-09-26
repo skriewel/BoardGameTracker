@@ -116,7 +116,7 @@ export const BgtSimpleSelect = (props: Props) => {
 										type="text"
 										value={searchTerm}
 										onChange={(e) => setSearchTerm(e.target.value)}
-										placeholder="Search..."
+										placeholder={t("search-placeholder")}
 										className="bg-transparent border-none outline-hidden py-2 text-sm w-full"
 										onClick={(e) => e.stopPropagation()}
 										onKeyDown={(e) => {

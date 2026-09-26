@@ -4,7 +4,9 @@
   },
   "image": {
     "type-not-supported": "Image type not supported",
-    "error": "Error while uploading image, check logs"
+    "error": "Error while uploading image, check logs",
+    "too-large": "La imagen es demasiado grande",
+    "unsupported-format": "Formato de imagen no compatible"
   },
   "auth": {
     "username-already-exists": "Username already exists",
@@ -18,7 +20,10 @@
     "invalid-credentials": "Invalid username or password",
     "invalid-refresh-token": "Invalid or expired session",
     "player-already-linked": "Este jugador ya está vinculado a otra cuenta",
-    "invalid-reset-token": "Este enlace para restablecer la contraseña no es válido o ha caducado"
+    "invalid-reset-token": "Este enlace para restablecer la contraseña no es válido o ha caducado",
+    "account-locked-out": "Demasiados intentos fallidos. Inténtalo de nuevo más tarde.",
+    "invalid-redirect-uri": "URI de redirección no válida",
+    "invalid-auth-session": "Sesión de autenticación no válida o caducada"
   },
   "changedetection": {
     "invalid-base-url": "La URL de changedetection.io no es válida",
