@@ -292,7 +292,6 @@ app.Use(async (context, next) =>
         headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
         headers["Cross-Origin-Resource-Policy"] = "same-origin";
         headers["Cross-Origin-Opener-Policy"] = "same-origin";
-        headers["Cross-Origin-Embedder-Policy"] = "require-corp";
         headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
 
         var isSwagger = swaggerEnabled && context.Request.Path.StartsWithSegments("/swagger");
