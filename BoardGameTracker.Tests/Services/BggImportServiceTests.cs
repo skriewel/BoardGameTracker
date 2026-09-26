@@ -635,7 +635,18 @@ public class BggImportServiceTests
                         Item = new PlaysResponse.Item
                         {
                             ObjectId = 779,
-                            Name = "Invalid Date",
+                            Name = "Invalid Min Date",
+                            SubTypes = ["boardgame"]
+                        }
+                    },
+                    new PlaysResponse.Play
+                    {
+                        Id = 903,
+                        Date = new DateTime(1900, 1, 1),
+                        Item = new PlaysResponse.Item
+                        {
+                            ObjectId = 780,
+                            Name = "Invalid 1900 Date",
                             SubTypes = ["boardgame"]
                         }
                     }
