@@ -77,6 +77,17 @@ public class Session : HasId
         LocationId = location?.Id;
     }
 
+    public void SetLocationId(int? locationId)
+    {
+        if (locationId.HasValue)
+        {
+            Guard.Against.NegativeOrZero(locationId.Value);
+        }
+
+        Location = null;
+        LocationId = locationId;
+    }
+
     public void AddExpansion(Expansion expansion)
     {
         Guard.Against.Null(expansion);
