@@ -199,6 +199,9 @@ public class BggPlayImportService : IBggPlayImportService
                 StringComparer.OrdinalIgnoreCase);
 
         var locationNames = eligiblePlays
+            .Where(entry => Enumerable.Range(1, entry.Quantity).Any(playIndex =>
+                !existingSessionsByKey.TryGetValue((entry.Play.Id, playIndex), out var existingSession)
+                || existingSession.LocationId == null))
             .Select(entry => NormalizeName(entry.Play.Location))
             .Where(name => name != null)
             .Select(name => name!)
