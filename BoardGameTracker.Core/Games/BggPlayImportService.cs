@@ -386,13 +386,30 @@ public class BggPlayImportService : IBggPlayImportService
             return null;
         }
 
-        return double.TryParse(
-            value.Trim(),
-            NumberStyles.Float | NumberStyles.AllowThousands,
-            CultureInfo.InvariantCulture,
-            out var score)
-            ? score
-            : null;
+        var normalized = value.Trim();
+        if (double.TryParse(
+                normalized,
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out var score))
+        {
+            return score;
+        }
+
+        if (normalized.Contains(',') && !normalized.Contains('.'))
+        {
+            normalized = normalized.Replace(',', '.');
+            if (double.TryParse(
+                    normalized,
+                    NumberStyles.Float,
+                    CultureInfo.InvariantCulture,
+                    out score))
+            {
+                return score;
+            }
+        }
+
+        return null;
     }
 
     private async Task<string> WriteMissingGamesReportAsync(
