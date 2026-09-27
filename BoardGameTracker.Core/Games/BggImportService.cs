@@ -162,7 +162,8 @@ public class BggImportService : IBggImportService
 
         var totalRows = 0;
         var standaloneRows = 0;
-        var matchedGames = 0;
+        var matchedBggIds = new HashSet<int>();
+        var gamesByBggId = new Dictionary<int, Game?>();
         var purchaseDatesUpdated = 0;
         var pricesUpdated = 0;
         var existingPricesPreserved = 0;
@@ -203,14 +204,19 @@ public class BggImportService : IBggImportService
                 continue;
             }
 
-            var game = await _gameRepository.GetGameByBggId(bggId);
+            if (!gamesByBggId.TryGetValue(bggId, out var game))
+            {
+                game = await _gameRepository.GetGameByBggId(bggId);
+                gamesByBggId[bggId] = game;
+            }
+
             if (game == null)
             {
                 missingBggIds.Add(bggId);
                 continue;
             }
 
-            matchedGames++;
+            matchedBggIds.Add(bggId);
 
             var acquisitionDateText = GetField("acquisitiondate");
             if (!string.IsNullOrWhiteSpace(acquisitionDateText))
@@ -290,7 +296,7 @@ public class BggImportService : IBggImportService
 
         _logger.LogInformation(
             "Imported BGG private collection CSV: {MatchedGames} matched games, {DatesUpdated} purchase dates updated, {PricesUpdated} prices updated, {MissingGames} missing BGG ids",
-            matchedGames,
+            matchedBggIds.Count,
             purchaseDatesUpdated,
             pricesUpdated,
             missingBggIds.Count);
@@ -298,7 +304,7 @@ public class BggImportService : IBggImportService
         return new BggPrivateCollectionImportResult(
             totalRows,
             standaloneRows,
-            matchedGames,
+            matchedBggIds.Count,
             purchaseDatesUpdated,
             pricesUpdated,
             existingPricesPreserved,
