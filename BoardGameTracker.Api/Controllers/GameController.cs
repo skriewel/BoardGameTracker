@@ -116,6 +116,22 @@ public class GameController : ControllerBase
         return NoContent();
     }
 
+    [HttpPost("bgg/import-private")]
+    [Authorize(Roles = Constants.AuthRoles.UserOrAdmin)]
+    [RequestSizeLimit(10 * 1024 * 1024)]
+    [RequestFormLimits(MultipartBodyLengthLimit = 10 * 1024 * 1024)]
+    public async Task<IActionResult> ImportPrivateBggCollection([FromForm] IFormFile file)
+    {
+        if (file.Length == 0)
+        {
+            return BadRequest();
+        }
+
+        await using var stream = file.OpenReadStream();
+        var result = await _bggImportService.ImportPrivateCollectionCsv(stream);
+        return Ok(result);
+    }
+
     [HttpGet]
     [Route("{id:int}/price")]
     [EnableRateLimiting("changedetection")]
