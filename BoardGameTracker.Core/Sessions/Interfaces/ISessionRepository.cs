@@ -14,6 +14,7 @@ public interface ISessionRepository: IRepository<Session>
     Task<List<Session>> GetByPlayerAndGame(int playerId, int gameId);
     Task<Dictionary<int, List<Session>>> GetByPlayerBatchAsync(IEnumerable<int> playerIds);
     Task<List<Session>> GetRecentSessions(int count);
+    Task<List<Session>> GetBggImportedSessionsForUpdate();
     Task<List<IGrouping<DayOfWeek, Session>>> GetSessionsByDayOfWeek();
     Task DeleteByPlayerIdAsync(int playerId);
 }

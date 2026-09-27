@@ -100,26 +100,29 @@ public class BggImportService : IBggImportService
             throw new BggCollectionPreparingException();
         }
 
-        if (response.Result == null || response.Result.Count == 0)
-        {
-            return new List<BggImportGame>();
-        }
-
-        return response.Result
-            .Where(x => x.Status.HasSupportedGameState())
-            .OrderByDescending(x => x.Status.LastModified)
+        var games = (response.Result?.AsEnumerable() ?? Enumerable.Empty<CollectionResponse.Item>())
+            .Where(x => x.HasSupportedGameState())
+            .OrderByDescending(x => x.Status.HasSupportedGameState())
+            .ThenByDescending(x => x.Status.LastModified)
             .DistinctBy(x => x.ObjectId)
-            .OrderBy(x => x.Name)
             .Select(collectionItem => new BggImportGame
             {
                 BggId = collectionItem.ObjectId,
                 Title = collectionItem.Name,
-                State = collectionItem.Status.ToGameState(),
+                State = collectionItem.ToGameState(),
                 ImageUrl = !string.IsNullOrWhiteSpace(collectionItem.Thumbnail)
                     ? collectionItem.Thumbnail
                     : collectionItem.Image ?? string.Empty,
                 LastModified = collectionItem.Status.LastModified
             })
+            .ToList();
+
+        var knownBggIds = games.Select(game => game.BggId).ToHashSet();
+        var playedGames = await FetchPlayedGamesNotInCollection(userName, knownBggIds);
+        games.AddRange(playedGames);
+
+        return games
+            .OrderBy(game => game.Title)
             .ToList();
     }
 
@@ -179,6 +182,101 @@ public class BggImportService : IBggImportService
 
         await _unitOfWork.SaveChangesAsync();
         _logger.LogInformation("BGG import completed, {Imported}/{Count} games imported", imported, games.Count);
+    }
+
+    private async Task<List<BggImportGame>> FetchPlayedGamesNotInCollection(
+        string userName,
+        HashSet<int> knownBggIds)
+    {
+        const int pageSize = 100;
+        var page = 1;
+        var playedGames = new Dictionary<int, BggImportGame>();
+
+        while (true)
+        {
+            PlaysResponse response;
+            try
+            {
+                response = await _bggClient.GetPlaysAsync(
+                    new PlaysRequest(userName, subType: "boardgame", page: page));
+            }
+            catch (BoardGameGeekHttpException ex) when (ex.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                _logger.LogWarning(ex, "BGG API key is invalid or expired");
+                throw new ValidationException("Invalid BGG API key. Please check your API key in settings.");
+            }
+            catch (BoardGameGeekHttpException ex) when (ex.StatusCode == HttpStatusCode.TooManyRequests)
+            {
+                _logger.LogWarning(ex, "BGG rate-limited the plays request while building collection import for {UserName}", userName);
+                throw new BggRateLimitException();
+            }
+            catch (BoardGameGeekHttpException ex)
+            {
+                _logger.LogWarning(ex, "BGG plays request failed while building collection import for {UserName}", userName);
+                throw;
+            }
+
+            var result = response.Result;
+            if (!response.Succeeded || result?.Plays == null || result.Plays.Count == 0)
+            {
+                break;
+            }
+
+            foreach (var play in result.Plays)
+            {
+                if (play.Item == null
+                    || play.Item.ObjectId <= 0
+                    || play.Date.HasPlaceholderDate()
+                    || play.Item.SubTypes?.Any(subType =>
+                        string.Equals(subType, "boardgameexpansion", StringComparison.OrdinalIgnoreCase)) == true)
+                {
+                    continue;
+                }
+
+                var bggId = play.Item.ObjectId;
+                if (knownBggIds.Contains(bggId))
+                {
+                    continue;
+                }
+
+                var playDate = DateTime.SpecifyKind(play.Date.Date, DateTimeKind.Utc);
+                var title = string.IsNullOrWhiteSpace(play.Item.Name)
+                    ? $"BGG {bggId}"
+                    : play.Item.Name.Trim();
+
+                if (!playedGames.TryGetValue(bggId, out var existing))
+                {
+                    playedGames[bggId] = new BggImportGame
+                    {
+                        BggId = bggId,
+                        Title = title,
+                        State = BoardGameTracker.Common.Enums.GameState.NotOwned,
+                        ImageUrl = string.Empty,
+                        LastModified = playDate
+                    };
+                    continue;
+                }
+
+                if (playDate > existing.LastModified)
+                {
+                    existing.LastModified = playDate;
+                }
+
+                if (existing.Title.StartsWith("BGG ", StringComparison.Ordinal) && !title.StartsWith("BGG ", StringComparison.Ordinal))
+                {
+                    existing.Title = title;
+                }
+            }
+
+            if (result.Plays.Count < pageSize || (result.Total > 0 && page * pageSize >= result.Total))
+            {
+                break;
+            }
+
+            page++;
+        }
+
+        return playedGames.Values.ToList();
     }
 
     private static decimal? ToSafeDecimalPrice(double value)

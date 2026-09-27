@@ -44,6 +44,56 @@ public class StatusExtensionsTests
     }
 
     [Fact]
+    public void CollectionItem_ShouldMapPlayedOnlyGameToNotOwned()
+    {
+        var item = new CollectionResponse.Item
+        {
+            NumPlays = 3,
+            Status = new CollectionResponse.Status
+            {
+                LastModified = new DateTime(2023, 1, 1)
+            }
+        };
+
+        item.HasSupportedGameState().Should().BeTrue();
+        item.ToGameState().Should().Be(GameState.NotOwned);
+    }
+
+    [Fact]
+    public void CollectionItem_ShouldPreferExplicitStateOverPlayedOnlyState()
+    {
+        var item = new CollectionResponse.Item
+        {
+            NumPlays = 3,
+            Status = new CollectionResponse.Status
+            {
+                Owned = true,
+                LastModified = new DateTime(2023, 1, 1)
+            }
+        };
+
+        item.ToGameState().Should().Be(GameState.Owned);
+    }
+
+    [Fact]
+    public void CollectionItem_ShouldRejectUnplayedGameWithoutSupportedState()
+    {
+        var item = new CollectionResponse.Item
+        {
+            NumPlays = 0,
+            Status = new CollectionResponse.Status
+            {
+                LastModified = new DateTime(2023, 1, 1)
+            }
+        };
+
+        item.HasSupportedGameState().Should().BeFalse();
+        var act = () => item.ToGameState();
+
+        act.Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
     public void ToGameState_ShouldThrow_WhenNoSupportedStateIsSet()
     {
         var status = new CollectionResponse.Status

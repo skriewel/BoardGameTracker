@@ -102,6 +102,14 @@ public class SessionRepository : EfRepository<Session>, ISessionRepository
         return ListAsync(new RecentSessionsSpec(count));
     }
 
+    public Task<List<Session>> GetBggImportedSessionsForUpdate()
+    {
+        return _context.Sessions
+            .Include(session => session.PlayerSessions)
+            .Where(session => session.BggPlayId.HasValue && session.BggPlayIndex.HasValue)
+            .ToListAsync();
+    }
+
     public Task<List<IGrouping<DayOfWeek, Session>>> GetSessionsByDayOfWeek()
     {
         return _context.Sessions

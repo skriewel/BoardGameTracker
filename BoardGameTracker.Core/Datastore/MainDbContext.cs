@@ -227,6 +227,11 @@ public class MainDbContext : IdentityDbContext<ApplicationUser>
     private static void BuildGameSessions(ModelBuilder builder)
     {
         builder.Entity<Session>()
+            .HasIndex(x => new { x.BggPlayId, x.BggPlayIndex })
+            .IsUnique()
+            .HasFilter("\"BggPlayId\" IS NOT NULL AND \"BggPlayIndex\" IS NOT NULL");
+
+        builder.Entity<Session>()
             .HasOne(x => x.Location)
             .WithMany(x => x.Sessions)
             .IsRequired(false)
