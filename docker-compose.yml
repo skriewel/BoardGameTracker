@@ -18,6 +18,7 @@ services:
       - DB_NAME=boardgametracker
       - DB_PORT=5432
       - JWT_SECRET=CHANGEME_GENERATE_AT_LEAST_32_CHARACTERS
+      - HOMEPAGE_API_TOKEN=${HOMEPAGE_API_TOKEN:-}
       - TZ=UTC
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5444/api/health"]
