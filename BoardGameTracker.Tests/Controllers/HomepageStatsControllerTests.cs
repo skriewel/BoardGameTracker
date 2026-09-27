@@ -30,7 +30,7 @@ public class HomepageStatsControllerTests
         var missing = await controller.GetStats();
         missing.Should().BeOfType<UnauthorizedResult>();
 
-        controller.ControllerContext.HttpContext.Request.Headers.Authorization = "Bearer wrong";
+        controller.ControllerContext.HttpContext.Request.Headers["Authorization"] = "Bearer wrong";
         var wrong = await controller.GetStats();
         wrong.Should().BeOfType<UnauthorizedResult>();
 
@@ -57,7 +57,7 @@ public class HomepageStatsControllerTests
             .Build();
 
         var controller = CreateController(service.Object, configuration);
-        controller.ControllerContext.HttpContext.Request.Headers.Authorization =
+        controller.ControllerContext.HttpContext.Request.Headers["Authorization"] =
             "Bearer homepage-secret";
 
         var result = await controller.GetStats();
