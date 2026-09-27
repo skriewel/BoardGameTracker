@@ -170,7 +170,7 @@ public class BggPlayImportService : IBggPlayImportService
                 StringComparer.OrdinalIgnoreCase);
 
         var playerNames = eligiblePlays
-            .SelectMany(entry => entry.Play.Players ?? [])
+            .SelectMany(entry => entry.Play.Players?.AsEnumerable() ?? Enumerable.Empty<PlaysResponse.Player>())
             .Select(GetBggPlayerName)
             .Where(name => name != null)
             .Select(name => name!)
@@ -321,7 +321,7 @@ public class BggPlayImportService : IBggPlayImportService
             changed = true;
         }
 
-        foreach (var bggPlayer in play.Players ?? [])
+        foreach (var bggPlayer in play.Players?.AsEnumerable() ?? Enumerable.Empty<PlaysResponse.Player>())
         {
             var playerName = GetBggPlayerName(bggPlayer);
             if (playerName == null || !playersByName.TryGetValue(playerName, out var player))
