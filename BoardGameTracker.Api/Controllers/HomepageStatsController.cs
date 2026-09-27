@@ -50,7 +50,7 @@ public class HomepageStatsController : ControllerBase
             return false;
         }
 
-        var authorization = Request.Headers.Authorization.ToString();
+        var authorization = Request.Headers["Authorization"].ToString();
         const string prefix = "Bearer ";
 
         if (!authorization.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
