@@ -46,6 +46,9 @@ public class HomepageStatsController : ControllerBase
                 recent.Id,
                 recent.GameTitle,
                 recent.LocationName,
+                string.IsNullOrWhiteSpace(recent.LocationName)
+                    ? recent.GameTitle
+                    : $"{recent.GameTitle} ({recent.LocationName})",
                 recent.Start);
 
         var upcomingMeetups = upcomingGameNights
@@ -61,13 +64,20 @@ public class HomepageStatsController : ControllerBase
             })
             .ToList();
 
+        var meetupRows = upcomingMeetups.Count > 0
+            ? upcomingMeetups
+                .Select(meetup => new HomepageMeetupRowResponse(meetup.Title, meetup.Display))
+                .ToList()
+            : [new HomepageMeetupRowResponse("Keine offenen Meetups", string.Empty)];
+
         return Ok(new HomepageStatsResponse(
             statistics.TotalGames,
             statistics.ActivePlayers,
             statistics.SessionsPlayed,
             statistics.TotalCollectionValue,
             lastSession,
-            upcomingMeetups));
+            upcomingMeetups,
+            meetupRows));
     }
 
     private bool HasValidToken()
@@ -105,12 +115,14 @@ public class HomepageStatsController : ControllerBase
         int Sessions,
         double? CollectionValue,
         HomepageLastSessionResponse? LastSession,
-        IReadOnlyList<HomepageMeetupResponse> UpcomingMeetups);
+        IReadOnlyList<HomepageMeetupResponse> UpcomingMeetups,
+        IReadOnlyList<HomepageMeetupRowResponse> MeetupRows);
 
     private sealed record HomepageLastSessionResponse(
         int Id,
         string Game,
         string? Location,
+        string Display,
         DateTime Start);
 
     private sealed record HomepageMeetupResponse(
@@ -118,5 +130,9 @@ public class HomepageStatsController : ControllerBase
         string Title,
         string? Location,
         DateTime Start,
+        string Display);
+
+    private sealed record HomepageMeetupRowResponse(
+        string Title,
         string Display);
 }

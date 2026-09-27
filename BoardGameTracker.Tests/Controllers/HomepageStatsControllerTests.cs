@@ -96,6 +96,7 @@ public class HomepageStatsControllerTests
                 Id = 42,
                 Game = "Heat: Pedal to the Metal",
                 Location = "Boardgame Cafe",
+                Display = "Heat: Pedal to the Metal (Boardgame Cafe)",
                 Start = new DateTime(2030, 9, 27, 18, 30, 0, DateTimeKind.Utc)
             },
             UpcomingMeetups = new[]
@@ -106,6 +107,14 @@ public class HomepageStatsControllerTests
                     Title = "Friday Games",
                     Location = (string?)null,
                     Start = new DateTime(2030, 10, 4, 19, 0, 0, DateTimeKind.Utc),
+                    Display = "04.10.2030 · —"
+                }
+            },
+            MeetupRows = new[]
+            {
+                new
+                {
+                    Title = "Friday Games",
                     Display = "04.10.2030 · —"
                 }
             }
@@ -147,7 +156,15 @@ public class HomepageStatsControllerTests
             Sessions = 0,
             CollectionValue = (double?)null,
             LastSession = (object?)null,
-            UpcomingMeetups = Array.Empty<object>()
+            UpcomingMeetups = Array.Empty<object>(),
+            MeetupRows = new[]
+            {
+                new
+                {
+                    Title = "Keine offenen Meetups",
+                    Display = string.Empty
+                }
+            }
         });
     }
 
