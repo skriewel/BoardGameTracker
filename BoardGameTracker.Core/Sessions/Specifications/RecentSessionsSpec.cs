@@ -9,6 +9,7 @@ public sealed class RecentSessionsSpec : Specification<Session>
     {
         Query
             .Include(x => x.Game)
+            .Include(x => x.Location)
             .Include(x => x.PlayerSessions)
                 .ThenInclude(ps => ps.Player)
             .OrderByDescending(x => x.Start)
