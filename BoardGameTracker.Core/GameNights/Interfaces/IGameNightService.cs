@@ -14,5 +14,6 @@ public interface IGameNightService
     Task Delete(int id);
     Task<GameNightRsvp> UpdateRsvp(UpdateRsvpCommand command);
     Task<int> CountFutureGameNights();
+    Task<List<GameNight>> GetUpcomingGameNights(int count);
     Task<GameNight?> GetByLinkId(Guid linkId);
 }

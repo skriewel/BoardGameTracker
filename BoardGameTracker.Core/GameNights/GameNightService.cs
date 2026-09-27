@@ -246,6 +246,13 @@ public class GameNightService : IGameNightService
         return _gameNightRepository.CountAsync(new FutureGameNightsSpec(_dateTimeProvider.UtcNow));
     }
 
+    public Task<List<GameNight>> GetUpcomingGameNights(int count)
+    {
+        Guard.Against.NegativeOrZero(count);
+        _logger.LogDebug("Fetching next {Count} game nights", count);
+        return _gameNightRepository.ListAsync(new UpcomingGameNightsSpec(_dateTimeProvider.UtcNow, count));
+    }
+
     public Task<GameNight?> GetByLinkId(Guid linkId)
     {
         return _gameNightRepository.SingleOrDefaultAsync(new GameNightByLinkIdSpec(linkId));

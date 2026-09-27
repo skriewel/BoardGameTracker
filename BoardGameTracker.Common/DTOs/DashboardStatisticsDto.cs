@@ -28,6 +28,7 @@ public class RecentActivityDto
     public string GameTitle { get; set; } = string.Empty;
     public string? GameImage { get; set; }
     public DateTime Start { get; set; }
+    public string? LocationName { get; set; }
     public int PlayerCount { get; set; }
     public double DurationInMinutes { get; set; }
     public int? WinnerId { get; set; }

@@ -17,6 +17,7 @@ public static class DashboardDtoExtensions
             GameTitle = session.Game.Title,
             GameImage = session.Game.Image,
             Start = session.Start,
+            LocationName = session.Location?.Name,
             PlayerCount = session.PlayerSessions.Count,
             DurationInMinutes = session.GetDuration().TotalMinutes,
             WinnerId = winner?.PlayerId,

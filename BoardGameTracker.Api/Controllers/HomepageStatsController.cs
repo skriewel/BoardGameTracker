@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using BoardGameTracker.Core.Dashboard.Interfaces;
+using BoardGameTracker.Core.GameNights.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
@@ -14,13 +15,16 @@ public class HomepageStatsController : ControllerBase
 {
     private const string TokenConfigurationKey = "HOMEPAGE_API_TOKEN";
     private readonly IDashboardService _dashboardService;
+    private readonly IGameNightService _gameNightService;
     private readonly IConfiguration _configuration;
 
     public HomepageStatsController(
         IDashboardService dashboardService,
+        IGameNightService gameNightService,
         IConfiguration configuration)
     {
         _dashboardService = dashboardService;
+        _gameNightService = gameNightService;
         _configuration = configuration;
     }
 
@@ -33,12 +37,37 @@ public class HomepageStatsController : ControllerBase
         }
 
         var statistics = await _dashboardService.GetStatistics();
+        var upcomingGameNights = await _gameNightService.GetUpcomingGameNights(3);
+
+        var recent = statistics.RecentActivities.FirstOrDefault();
+        var lastSession = recent == null
+            ? null
+            : new HomepageLastSessionResponse(
+                recent.Id,
+                recent.GameTitle,
+                recent.LocationName,
+                recent.Start);
+
+        var upcomingMeetups = upcomingGameNights
+            .Select(gameNight =>
+            {
+                var location = gameNight.Location?.Name;
+                return new HomepageMeetupResponse(
+                    gameNight.Id,
+                    gameNight.Title,
+                    location,
+                    gameNight.StartDate,
+                    $"{gameNight.StartDate:dd.MM.yyyy} · {location ?? "—"}");
+            })
+            .ToList();
 
         return Ok(new HomepageStatsResponse(
             statistics.TotalGames,
             statistics.ActivePlayers,
             statistics.SessionsPlayed,
-            statistics.TotalCollectionValue));
+            statistics.TotalCollectionValue,
+            lastSession,
+            upcomingMeetups));
     }
 
     private bool HasValidToken()
@@ -74,5 +103,20 @@ public class HomepageStatsController : ControllerBase
         int Games,
         int Players,
         int Sessions,
-        double? CollectionValue);
+        double? CollectionValue,
+        HomepageLastSessionResponse? LastSession,
+        IReadOnlyList<HomepageMeetupResponse> UpcomingMeetups);
+
+    private sealed record HomepageLastSessionResponse(
+        int Id,
+        string Game,
+        string? Location,
+        DateTime Start);
+
+    private sealed record HomepageMeetupResponse(
+        int Id,
+        string Title,
+        string? Location,
+        DateTime Start,
+        string Display);
 }
