@@ -220,7 +220,8 @@ public class BggImportService : IBggImportService
                         "yyyy-MM-dd",
                         CultureInfo.InvariantCulture,
                         DateTimeStyles.None,
-                        out var acquisitionDate))
+                        out var acquisitionDate)
+                    && acquisitionDate.Date <= DateTime.UtcNow.Date)
                 {
                     game.UpdateAdditionDate(DateTime.SpecifyKind(acquisitionDate.Date, DateTimeKind.Utc));
                     purchaseDatesUpdated++;
@@ -476,7 +477,8 @@ public class BggImportService : IBggImportService
         var inQuotes = false;
         var hasContent = false;
 
-        while (reader.Read() is var next && next >= 0)
+        int next;
+        while ((next = reader.Read()) >= 0)
         {
             var character = (char)next;
             hasContent = true;
