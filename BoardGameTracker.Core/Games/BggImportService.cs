@@ -1,4 +1,6 @@
+using System.Globalization;
 using System.Net;
+using System.Text;
 using BoardGamer.BoardGameGeek.BoardGameGeekXmlApi2;
 using BoardGameTracker.Common.Entities;
 using BoardGameTracker.Common.Exceptions;
@@ -124,6 +126,194 @@ public class BggImportService : IBggImportService
         return games
             .OrderBy(game => game.Title)
             .ToList();
+    }
+
+    public async Task<BggPrivateCollectionImportResult> ImportPrivateCollectionCsv(Stream csvStream)
+    {
+        ArgumentNullException.ThrowIfNull(csvStream);
+
+        const decimal cadToEur = 0.62m;
+        const decimal usdToEur = 0.88m;
+        const decimal gbpToEur = 1.16m;
+
+        using var rows = ReadCsvRows(csvStream).GetEnumerator();
+        if (!rows.MoveNext())
+        {
+            throw new ValidationException("The BGG collection CSV is empty.");
+        }
+
+        var headers = rows.Current;
+        var columns = headers
+            .Select((header, index) => (Header: header.Trim(), Index: index))
+            .Where(column => !string.IsNullOrWhiteSpace(column.Header))
+            .GroupBy(column => column.Header, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group => group.First().Index,
+                StringComparer.OrdinalIgnoreCase);
+
+        foreach (var requiredColumn in new[] { "objectid", "itemtype", "pricepaid", "pp_currency", "acquisitiondate" })
+        {
+            if (!columns.ContainsKey(requiredColumn))
+            {
+                throw new ValidationException($"The BGG collection CSV is missing the '{requiredColumn}' column.");
+            }
+        }
+
+        var totalRows = 0;
+        var standaloneRows = 0;
+        var matchedBggIds = new HashSet<int>();
+        var gamesByBggId = new Dictionary<int, Game?>();
+        var purchaseDatesUpdated = 0;
+        var pricesUpdated = 0;
+        var existingPricesPreserved = 0;
+        var cadPricesConverted = 0;
+        var usdPricesConverted = 0;
+        var gbpPricesConverted = 0;
+        var invalidRows = 0;
+        var unsupportedCurrencyRows = 0;
+        var missingBggIds = new HashSet<int>();
+
+        while (rows.MoveNext())
+        {
+            var fields = rows.Current;
+            if (fields.Length == 0)
+            {
+                continue;
+            }
+
+            totalRows++;
+
+            string GetField(string name)
+            {
+                var columnIndex = columns[name];
+                return columnIndex < fields.Length ? fields[columnIndex].Trim() : string.Empty;
+            }
+
+            if (!string.Equals(GetField("itemtype"), "standalone", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            standaloneRows++;
+
+            if (!int.TryParse(GetField("objectid"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var bggId)
+                || bggId <= 0)
+            {
+                invalidRows++;
+                continue;
+            }
+
+            if (!gamesByBggId.TryGetValue(bggId, out var game))
+            {
+                game = await _gameRepository.GetGameByBggId(bggId);
+                gamesByBggId[bggId] = game;
+            }
+
+            if (game == null)
+            {
+                missingBggIds.Add(bggId);
+                continue;
+            }
+
+            matchedBggIds.Add(bggId);
+
+            var acquisitionDateText = GetField("acquisitiondate");
+            if (!string.IsNullOrWhiteSpace(acquisitionDateText))
+            {
+                if (DateTime.TryParseExact(
+                        acquisitionDateText,
+                        "yyyy-MM-dd",
+                        CultureInfo.InvariantCulture,
+                        DateTimeStyles.None,
+                        out var acquisitionDate)
+                    && acquisitionDate.Date <= DateTime.UtcNow.Date)
+                {
+                    game.UpdateAdditionDate(DateTime.SpecifyKind(acquisitionDate.Date, DateTimeKind.Utc));
+                    purchaseDatesUpdated++;
+                }
+                else
+                {
+                    invalidRows++;
+                }
+            }
+
+            var priceText = GetField("pricepaid");
+            if (string.IsNullOrWhiteSpace(priceText))
+            {
+                continue;
+            }
+
+            if (!decimal.TryParse(
+                    priceText,
+                    NumberStyles.Number,
+                    CultureInfo.InvariantCulture,
+                    out var sourcePrice)
+                || sourcePrice < 0)
+            {
+                invalidRows++;
+                continue;
+            }
+
+            if (game.BuyingPrice is { Amount: > 0 })
+            {
+                existingPricesPreserved++;
+                continue;
+            }
+
+            var currency = GetField("pp_currency").ToUpperInvariant();
+            decimal eurPrice;
+            switch (currency)
+            {
+                case "EUR":
+                    eurPrice = sourcePrice;
+                    break;
+                case "CAD":
+                    eurPrice = sourcePrice * cadToEur;
+                    cadPricesConverted++;
+                    break;
+                case "USD":
+                    eurPrice = sourcePrice * usdToEur;
+                    usdPricesConverted++;
+                    break;
+                case "GBP":
+                    eurPrice = sourcePrice * gbpToEur;
+                    gbpPricesConverted++;
+                    break;
+                default:
+                    unsupportedCurrencyRows++;
+                    continue;
+            }
+
+            game.UpdateBuyingPrice(eurPrice);
+            pricesUpdated++;
+        }
+
+        if (purchaseDatesUpdated > 0 || pricesUpdated > 0)
+        {
+            await _unitOfWork.SaveChangesAsync();
+        }
+
+        _logger.LogInformation(
+            "Imported BGG private collection CSV: {MatchedGames} matched games, {DatesUpdated} purchase dates updated, {PricesUpdated} prices updated, {MissingGames} missing BGG ids",
+            matchedBggIds.Count,
+            purchaseDatesUpdated,
+            pricesUpdated,
+            missingBggIds.Count);
+
+        return new BggPrivateCollectionImportResult(
+            totalRows,
+            standaloneRows,
+            matchedBggIds.Count,
+            purchaseDatesUpdated,
+            pricesUpdated,
+            existingPricesPreserved,
+            cadPricesConverted,
+            usdPricesConverted,
+            gbpPricesConverted,
+            invalidRows,
+            unsupportedCurrencyRows,
+            missingBggIds.OrderBy(id => id).ToList());
     }
 
     public async Task ImportList(IList<ImportGame> games)
@@ -277,6 +467,94 @@ public class BggImportService : IBggImportService
         }
 
         return playedGames.Values.ToList();
+    }
+
+    private static IEnumerable<string[]> ReadCsvRows(Stream csvStream)
+    {
+        using var reader = new StreamReader(
+            csvStream,
+            Encoding.UTF8,
+            detectEncodingFromByteOrderMarks: true,
+            bufferSize: 4096,
+            leaveOpen: true);
+
+        var row = new List<string>();
+        var field = new StringBuilder();
+        var inQuotes = false;
+        var hasContent = false;
+
+        int next;
+        while ((next = reader.Read()) >= 0)
+        {
+            var character = (char)next;
+            hasContent = true;
+
+            if (inQuotes)
+            {
+                if (character == '"')
+                {
+                    if (reader.Peek() == '"')
+                    {
+                        reader.Read();
+                        field.Append('"');
+                    }
+                    else
+                    {
+                        inQuotes = false;
+                    }
+                }
+                else
+                {
+                    field.Append(character);
+                }
+
+                continue;
+            }
+
+            switch (character)
+            {
+                case '"':
+                    inQuotes = true;
+                    break;
+                case ',':
+                    row.Add(field.ToString());
+                    field.Clear();
+                    break;
+                case '\r':
+                    if (reader.Peek() == '\n')
+                    {
+                        reader.Read();
+                    }
+
+                    row.Add(field.ToString());
+                    field.Clear();
+                    yield return row.ToArray();
+                    row.Clear();
+                    hasContent = false;
+                    break;
+                case '\n':
+                    row.Add(field.ToString());
+                    field.Clear();
+                    yield return row.ToArray();
+                    row.Clear();
+                    hasContent = false;
+                    break;
+                default:
+                    field.Append(character);
+                    break;
+            }
+        }
+
+        if (inQuotes)
+        {
+            throw new ValidationException("The BGG collection CSV contains an unterminated quoted field.");
+        }
+
+        if (hasContent || row.Count > 0 || field.Length > 0)
+        {
+            row.Add(field.ToString());
+            yield return row.ToArray();
+        }
     }
 
     private static decimal? ToSafeDecimalPrice(double value)

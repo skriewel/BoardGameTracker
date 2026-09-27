@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Threading.Tasks;
 using BoardGamer.BoardGameGeek.BoardGameGeekXmlApi2;
 using BoardGameTracker.Common.Entities;
@@ -1000,6 +1001,125 @@ public class BggImportServiceTests
                 && r.RelativeUrl.ToString().Contains("excludesubtype=boardgameexpansion"))),
             Times.Once);
         VerifyNoOtherCalls();
+    }
+
+    #endregion
+
+    #region ImportPrivateCollectionCsv Tests
+
+    [Fact]
+    public async Task ImportPrivateCollectionCsv_ShouldOverwritePurchaseDateAndConvertCurrencies()
+    {
+        var eurGame = new Game("EUR Game") { Id = 1 };
+        eurGame.UpdateBggId(101);
+        eurGame.UpdateBuyingPrice(0);
+        eurGame.UpdateAdditionDate(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+
+        var usdGame = new Game("USD Game") { Id = 2 };
+        usdGame.UpdateBggId(102);
+        usdGame.UpdateBuyingPrice(0);
+
+        var cadGame = new Game("CAD Game") { Id = 3 };
+        cadGame.UpdateBggId(103);
+        cadGame.UpdateBuyingPrice(0);
+
+        var gbpGame = new Game("GBP Game") { Id = 4 };
+        gbpGame.UpdateBggId(104);
+        gbpGame.UpdateBuyingPrice(0);
+
+        _gameRepositoryMock.Setup(x => x.GetGameByBggId(101)).ReturnsAsync(eurGame);
+        _gameRepositoryMock.Setup(x => x.GetGameByBggId(102)).ReturnsAsync(usdGame);
+        _gameRepositoryMock.Setup(x => x.GetGameByBggId(103)).ReturnsAsync(cadGame);
+        _gameRepositoryMock.Setup(x => x.GetGameByBggId(104)).ReturnsAsync(gbpGame);
+        _unitOfWorkMock.Setup(x => x.SaveChangesAsync(default)).ReturnsAsync(4);
+
+        const string csv =
+            "objectname,objectid,itemtype,pricepaid,pp_currency,acquisitiondate\n" +
+            "EUR Game,101,standalone,10,EUR,2018-12-05\n" +
+            "USD Game,102,standalone,10,USD,2019-01-02\n" +
+            "CAD Game,103,standalone,10,CAD,2020-02-03\n" +
+            "GBP Game,104,standalone,10,GBP,2021-03-04\n" +
+            "Ignored Expansion,999,expansion,99,EUR,2022-04-05\n";
+
+        await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv));
+        var result = await _bggImportService.ImportPrivateCollectionCsv(stream);
+
+        result.TotalRows.Should().Be(5);
+        result.StandaloneRows.Should().Be(4);
+        result.MatchedGames.Should().Be(4);
+        result.PurchaseDatesUpdated.Should().Be(4);
+        result.PricesUpdated.Should().Be(4);
+        result.CadPricesConverted.Should().Be(1);
+        result.UsdPricesConverted.Should().Be(1);
+        result.GbpPricesConverted.Should().Be(1);
+        result.MissingBggIds.Should().BeEmpty();
+
+        eurGame.BuyingPrice!.Amount.Should().Be(10m);
+        usdGame.BuyingPrice!.Amount.Should().Be(8.80m);
+        cadGame.BuyingPrice!.Amount.Should().Be(6.20m);
+        gbpGame.BuyingPrice!.Amount.Should().Be(11.60m);
+
+        eurGame.AdditionDate.Should().Be(new DateTime(2018, 12, 5, 0, 0, 0, DateTimeKind.Utc));
+        usdGame.AdditionDate.Should().Be(new DateTime(2019, 1, 2, 0, 0, 0, DateTimeKind.Utc));
+        cadGame.AdditionDate.Should().Be(new DateTime(2020, 2, 3, 0, 0, 0, DateTimeKind.Utc));
+        gbpGame.AdditionDate.Should().Be(new DateTime(2021, 3, 4, 0, 0, 0, DateTimeKind.Utc));
+
+        _gameRepositoryMock.Verify(x => x.GetGameByBggId(999), Times.Never);
+        _unitOfWorkMock.Verify(x => x.SaveChangesAsync(default), Times.Once);
+    }
+
+    [Fact]
+    public async Task ImportPrivateCollectionCsv_ShouldPreserveExistingNonZeroPriceButStillOverwritePurchaseDate()
+    {
+        var game = new Game("Existing Price") { Id = 1 };
+        game.UpdateBggId(201);
+        game.UpdateBuyingPrice(49.99m);
+        game.UpdateAdditionDate(new DateTime(2026, 8, 1, 0, 0, 0, DateTimeKind.Utc));
+
+        _gameRepositoryMock.Setup(x => x.GetGameByBggId(201)).ReturnsAsync(game);
+        _unitOfWorkMock.Setup(x => x.SaveChangesAsync(default)).ReturnsAsync(1);
+
+        const string csv =
+            "objectid,itemtype,pricepaid,pp_currency,acquisitiondate\n" +
+            "201,standalone,10,USD,2017-06-07\n";
+
+        await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv));
+        var result = await _bggImportService.ImportPrivateCollectionCsv(stream);
+
+        result.PurchaseDatesUpdated.Should().Be(1);
+        result.PricesUpdated.Should().Be(0);
+        result.ExistingPricesPreserved.Should().Be(1);
+        result.UsdPricesConverted.Should().Be(0);
+
+        game.BuyingPrice!.Amount.Should().Be(49.99m);
+        game.AdditionDate.Should().Be(new DateTime(2017, 6, 7, 0, 0, 0, DateTimeKind.Utc));
+
+        _unitOfWorkMock.Verify(x => x.SaveChangesAsync(default), Times.Once);
+    }
+
+    [Fact]
+    public async Task ImportPrivateCollectionCsv_ShouldReportMissingGamesAndUnsupportedCurrency()
+    {
+        var game = new Game("Unsupported Currency") { Id = 1 };
+        game.UpdateBggId(301);
+        game.UpdateBuyingPrice(0);
+
+        _gameRepositoryMock.Setup(x => x.GetGameByBggId(301)).ReturnsAsync(game);
+
+        const string csv =
+            "objectid,itemtype,pricepaid,pp_currency,acquisitiondate\n" +
+            "301,standalone,100,JPY,\n" +
+            "302,standalone,25,EUR,\n";
+
+        await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv));
+        var result = await _bggImportService.ImportPrivateCollectionCsv(stream);
+
+        result.MatchedGames.Should().Be(1);
+        result.UnsupportedCurrencyRows.Should().Be(1);
+        result.PricesUpdated.Should().Be(0);
+        result.MissingBggIds.Should().Equal(302);
+
+        _unitOfWorkMock.Verify(x => x.SaveChangesAsync(default), Times.Never);
     }
 
     #endregion

@@ -5,6 +5,7 @@ using BoardGameTracker.Common.Extensions;
 using BoardGameTracker.Common.Models.Bgg;
 using BoardGameTracker.Core.Games.Interfaces;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
@@ -114,6 +115,22 @@ public class GameController : ControllerBase
     {
         await _bggImportService.ImportList(command.Games);
         return NoContent();
+    }
+
+    [HttpPost("bgg/import-private")]
+    [Authorize(Roles = Constants.AuthRoles.UserOrAdmin)]
+    [RequestSizeLimit(10 * 1024 * 1024)]
+    [RequestFormLimits(MultipartBodyLengthLimit = 10 * 1024 * 1024)]
+    public async Task<IActionResult> ImportPrivateBggCollection([FromForm] IFormFile file)
+    {
+        if (file.Length == 0)
+        {
+            return BadRequest();
+        }
+
+        await using var stream = file.OpenReadStream();
+        var result = await _bggImportService.ImportPrivateCollectionCsv(stream);
+        return Ok(result);
     }
 
     [HttpGet]
