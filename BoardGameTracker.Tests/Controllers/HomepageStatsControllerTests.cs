@@ -1,8 +1,11 @@
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using BoardGameTracker.Api.Controllers;
 using BoardGameTracker.Common.DTOs;
+using BoardGameTracker.Common.Entities;
 using BoardGameTracker.Core.Dashboard.Interfaces;
+using BoardGameTracker.Core.GameNights.Interfaces;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -17,15 +20,14 @@ public class HomepageStatsControllerTests
     [Fact]
     public async Task GetStats_ShouldRejectMissingOrWrongBearerToken()
     {
-        var service = new Mock<IDashboardService>();
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["HOMEPAGE_API_TOKEN"] = "homepage-secret"
-            })
-            .Build();
+        var dashboardService = new Mock<IDashboardService>();
+        var gameNightService = new Mock<IGameNightService>();
+        var configuration = CreateConfiguration();
 
-        var controller = CreateController(service.Object, configuration);
+        var controller = CreateController(
+            dashboardService.Object,
+            gameNightService.Object,
+            configuration);
 
         var missing = await controller.GetStats();
         missing.Should().BeOfType<UnauthorizedResult>();
@@ -34,29 +36,49 @@ public class HomepageStatsControllerTests
         var wrong = await controller.GetStats();
         wrong.Should().BeOfType<UnauthorizedResult>();
 
-        service.VerifyNoOtherCalls();
+        dashboardService.VerifyNoOtherCalls();
+        gameNightService.VerifyNoOtherCalls();
     }
 
     [Fact]
-    public async Task GetStats_ShouldReturnCompactDashboardStatistics()
+    public async Task GetStats_ShouldReturnLastSessionAndUpcomingMeetups()
     {
-        var service = new Mock<IDashboardService>();
-        service.Setup(x => x.GetStatistics()).ReturnsAsync(new DashboardStatisticsDto
+        var dashboardService = new Mock<IDashboardService>();
+        dashboardService.Setup(x => x.GetStatistics()).ReturnsAsync(new DashboardStatisticsDto
         {
             TotalGames = 25,
             ActivePlayers = 10,
             SessionsPlayed = 100,
-            TotalCollectionValue = 887.5
+            TotalCollectionValue = 887.5,
+            RecentActivities =
+            [
+                new RecentActivityDto
+                {
+                    Id = 42,
+                    GameTitle = "Heat: Pedal to the Metal",
+                    LocationName = "Boardgame Cafe",
+                    Start = new DateTime(2030, 9, 27, 18, 30, 0, DateTimeKind.Utc)
+                }
+            ]
         });
 
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["HOMEPAGE_API_TOKEN"] = "homepage-secret"
-            })
-            .Build();
+        var meetup = GameNight.Create(
+            "Friday Games",
+            "",
+            new DateTime(2030, 10, 4, 19, 0, 0, DateTimeKind.Utc),
+            1,
+            2);
+        meetup.Id = 7;
 
-        var controller = CreateController(service.Object, configuration);
+        var gameNightService = new Mock<IGameNightService>();
+        gameNightService
+            .Setup(x => x.GetUpcomingGameNights(3))
+            .ReturnsAsync([meetup]);
+
+        var controller = CreateController(
+            dashboardService.Object,
+            gameNightService.Object,
+            CreateConfiguration());
         controller.ControllerContext.HttpContext.Request.Headers["Authorization"] =
             "Bearer homepage-secret";
 
@@ -68,18 +90,83 @@ public class HomepageStatsControllerTests
             Games = 25,
             Players = 10,
             Sessions = 100,
-            CollectionValue = (double?)887.5
+            CollectionValue = (double?)887.5,
+            LastSession = new
+            {
+                Id = 42,
+                Game = "Heat: Pedal to the Metal",
+                Location = "Boardgame Cafe",
+                Start = new DateTime(2030, 9, 27, 18, 30, 0, DateTimeKind.Utc)
+            },
+            UpcomingMeetups = new[]
+            {
+                new
+                {
+                    Id = 7,
+                    Title = "Friday Games",
+                    Location = (string?)null,
+                    Start = new DateTime(2030, 10, 4, 19, 0, 0, DateTimeKind.Utc),
+                    Display = "04.10.2030 · —"
+                }
+            }
         });
 
-        service.Verify(x => x.GetStatistics(), Times.Once);
-        service.VerifyNoOtherCalls();
+        dashboardService.Verify(x => x.GetStatistics(), Times.Once);
+        gameNightService.Verify(x => x.GetUpcomingGameNights(3), Times.Once);
+        dashboardService.VerifyNoOtherCalls();
+        gameNightService.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task GetStats_ShouldReturnNullLastSessionAndEmptyMeetups_WhenNoneExist()
+    {
+        var dashboardService = new Mock<IDashboardService>();
+        dashboardService
+            .Setup(x => x.GetStatistics())
+            .ReturnsAsync(new DashboardStatisticsDto { TotalGames = 5 });
+
+        var gameNightService = new Mock<IGameNightService>();
+        gameNightService
+            .Setup(x => x.GetUpcomingGameNights(3))
+            .ReturnsAsync([]);
+
+        var controller = CreateController(
+            dashboardService.Object,
+            gameNightService.Object,
+            CreateConfiguration());
+        controller.ControllerContext.HttpContext.Request.Headers["Authorization"] =
+            "Bearer homepage-secret";
+
+        var result = await controller.GetStats();
+
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        ok.Value.Should().BeEquivalentTo(new
+        {
+            Games = 5,
+            Players = 0,
+            Sessions = 0,
+            CollectionValue = (double?)null,
+            LastSession = (object?)null,
+            UpcomingMeetups = Array.Empty<object>()
+        });
+    }
+
+    private static IConfiguration CreateConfiguration()
+    {
+        return new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["HOMEPAGE_API_TOKEN"] = "homepage-secret"
+            })
+            .Build();
     }
 
     private static HomepageStatsController CreateController(
-        IDashboardService service,
+        IDashboardService dashboardService,
+        IGameNightService gameNightService,
         IConfiguration configuration)
     {
-        return new HomepageStatsController(service, configuration)
+        return new HomepageStatsController(dashboardService, gameNightService, configuration)
         {
             ControllerContext = new ControllerContext
             {
