@@ -3,6 +3,7 @@ using System.Text;
 using BoardGameTracker.Core.Dashboard.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 
 namespace BoardGameTracker.Api.Controllers;
 
@@ -11,12 +12,16 @@ namespace BoardGameTracker.Api.Controllers;
 [AllowAnonymous]
 public class HomepageStatsController : ControllerBase
 {
-    private const string TokenEnvironmentVariable = "HOMEPAGE_API_TOKEN";
+    private const string TokenConfigurationKey = "HOMEPAGE_API_TOKEN";
     private readonly IDashboardService _dashboardService;
+    private readonly IConfiguration _configuration;
 
-    public HomepageStatsController(IDashboardService dashboardService)
+    public HomepageStatsController(
+        IDashboardService dashboardService,
+        IConfiguration configuration)
     {
         _dashboardService = dashboardService;
+        _configuration = configuration;
     }
 
     [HttpGet]
@@ -29,18 +34,16 @@ public class HomepageStatsController : ControllerBase
 
         var statistics = await _dashboardService.GetStatistics();
 
-        return Ok(new
-        {
-            games = statistics.TotalGames,
-            players = statistics.ActivePlayers,
-            sessions = statistics.SessionsPlayed,
-            collectionValue = statistics.TotalCollectionValue
-        });
+        return Ok(new HomepageStatsResponse(
+            statistics.TotalGames,
+            statistics.ActivePlayers,
+            statistics.SessionsPlayed,
+            statistics.TotalCollectionValue));
     }
 
     private bool HasValidToken()
     {
-        var expected = Environment.GetEnvironmentVariable(TokenEnvironmentVariable);
+        var expected = _configuration[TokenConfigurationKey];
 
         if (string.IsNullOrWhiteSpace(expected))
         {
@@ -66,4 +69,10 @@ public class HomepageStatsController : ControllerBase
             Encoding.UTF8.GetBytes(provided),
             Encoding.UTF8.GetBytes(expected));
     }
+
+    private sealed record HomepageStatsResponse(
+        int Games,
+        int Players,
+        int Sessions,
+        double? CollectionValue);
 }
