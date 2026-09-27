@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Net;
 using System.Text;
-using Microsoft.VisualBasic.FileIO;
 using BoardGamer.BoardGameGeek.BoardGameGeekXmlApi2;
 using BoardGameTracker.Common.Entities;
 using BoardGameTracker.Common.Exceptions;
@@ -137,20 +136,13 @@ public class BggImportService : IBggImportService
         const decimal usdToEur = 0.88m;
         const decimal gbpToEur = 1.16m;
 
-        using var parser = new TextFieldParser(csvStream, Encoding.UTF8, true)
-        {
-            TextFieldType = FieldType.Delimited,
-            HasFieldsEnclosedInQuotes = true,
-            TrimWhiteSpace = false
-        };
-        parser.SetDelimiters(",");
-
-        if (parser.EndOfData)
+        using var rows = ReadCsvRows(csvStream).GetEnumerator();
+        if (!rows.MoveNext())
         {
             throw new ValidationException("The BGG collection CSV is empty.");
         }
 
-        var headers = parser.ReadFields() ?? [];
+        var headers = rows.Current;
         var columns = headers
             .Select((header, index) => (Header: header.Trim(), Index: index))
             .Where(column => !string.IsNullOrWhiteSpace(column.Header))
@@ -181,20 +173,10 @@ public class BggImportService : IBggImportService
         var unsupportedCurrencyRows = 0;
         var missingBggIds = new HashSet<int>();
 
-        while (!parser.EndOfData)
+        while (rows.MoveNext())
         {
-            string[]? fields;
-            try
-            {
-                fields = parser.ReadFields();
-            }
-            catch (MalformedLineException)
-            {
-                invalidRows++;
-                continue;
-            }
-
-            if (fields == null || fields.Length == 0)
+            var fields = rows.Current;
+            if (fields.Length == 0)
             {
                 continue;
             }
@@ -478,6 +460,93 @@ public class BggImportService : IBggImportService
         }
 
         return playedGames.Values.ToList();
+    }
+
+    private static IEnumerable<string[]> ReadCsvRows(Stream csvStream)
+    {
+        using var reader = new StreamReader(
+            csvStream,
+            Encoding.UTF8,
+            detectEncodingFromByteOrderMarks: true,
+            bufferSize: 4096,
+            leaveOpen: true);
+
+        var row = new List<string>();
+        var field = new StringBuilder();
+        var inQuotes = false;
+        var hasContent = false;
+
+        while (reader.Read() is var next && next >= 0)
+        {
+            var character = (char)next;
+            hasContent = true;
+
+            if (inQuotes)
+            {
+                if (character == '"')
+                {
+                    if (reader.Peek() == '"')
+                    {
+                        reader.Read();
+                        field.Append('"');
+                    }
+                    else
+                    {
+                        inQuotes = false;
+                    }
+                }
+                else
+                {
+                    field.Append(character);
+                }
+
+                continue;
+            }
+
+            switch (character)
+            {
+                case '"':
+                    inQuotes = true;
+                    break;
+                case ',':
+                    row.Add(field.ToString());
+                    field.Clear();
+                    break;
+                case '\r':
+                    if (reader.Peek() == '\n')
+                    {
+                        reader.Read();
+                    }
+
+                    row.Add(field.ToString());
+                    field.Clear();
+                    yield return row.ToArray();
+                    row.Clear();
+                    hasContent = false;
+                    break;
+                case '\n':
+                    row.Add(field.ToString());
+                    field.Clear();
+                    yield return row.ToArray();
+                    row.Clear();
+                    hasContent = false;
+                    break;
+                default:
+                    field.Append(character);
+                    break;
+            }
+        }
+
+        if (inQuotes)
+        {
+            throw new ValidationException("The BGG collection CSV contains an unterminated quoted field.");
+        }
+
+        if (hasContent || row.Count > 0 || field.Length > 0)
+        {
+            row.Add(field.ToString());
+            yield return row.ToArray();
+        }
     }
 
     private static decimal? ToSafeDecimalPrice(double value)
